@@ -1,0 +1,16 @@
+[Desktop Entry]
+Categories=GNOME;GTK;Utility;Terminal;
+Name=Telepipe (development version)
+Keywords=console;command line;cli;terminal;
+Comment=Easily combine pipes with the clipboard
+Type=Application
+Exec=telepipe
+Actions=new-window;
+Terminal=false
+Icon=ca.vtrlx.Telepipe.Devel
+StartupNotify=false
+
+[Desktop Action new-window]
+Name=New Window
+Name[en]=New Window
+Exec=telepipe --new-window

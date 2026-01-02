@@ -1,5 +1,3 @@
-#!/usr/bin/env lua
-
 --[[
 - Split async handling of stdout and stderr.
 - Queue up changes to the text view and have them be flushed regularly as well as when each of the pipes close.
@@ -20,6 +18,8 @@
 
 -- SECTION: Helper functions
 
+local lib = require "telepipelib"
+
 -- Simple class implementation without inheritance.
 local function newclass(init)
 	local c = {}
@@ -37,6 +37,11 @@ local function newclass(init)
 end
 
 -- SECTION: Application
+
+-- This app runs in Flatpak, which puts Lua libraries outside of the standard paths. These lines tell Lua to look for libraries where Flatpak has put them.
+package.cpath = "/app/lib/lua/5.5/?.so;" .. package.cpath
+package.path = "/app/share/lua/5.5/?.lua;" .. package.path
+
 local LuaGObject = require "LuaGObject"
 
 local Adw = LuaGObject.Adw
@@ -47,11 +52,12 @@ local GObject = LuaGObject.GObject
 local Gtk = LuaGObject.Gtk
 
 local app = Adw.Application {
-	application_id = "ca.vtrlx.Telepipe",
+	application_id = lib.get_app_id(),
 }
 
 local accels = {
 	["win.close-stdin"] = { "<Ctrl>D" },
+	["win.focus-cmdbar"] = { "<Ctrl>K" },
 }
 for k, v in pairs(accels) do
 	app:set_accels_for_action(k, v)
@@ -120,7 +126,8 @@ end
 function runner:flush()
 	if #self.outputqueue < 1 then return end
 	if not self.outputqueue:match "[^\n]" then return end
-	local output, newlines = self.outputqueue:match "^(.*[^\n])([\n]*)$"
+	local newlines = self.outputqueue:match "\n*$"
+	local output = self.outputqueue:sub(1, -#newlines - 1)
 	if output then
 		self:putstring(output)
 	end
@@ -147,13 +154,17 @@ function runner:ensurenewlines()
 	self.outputqueue = self.outputqueue:match "[^\n].*" or ""
 end
 
+-- FIXME:
 function runner:handlepipe(pipe, callback, copyafter)
 	Gio.Async.start(function()
 		local text = ""
 		repeat
 			local bytes = pipe:async_read_bytes(4096)
 			if not bytes.data or #bytes.data == 0 then break end
-			callback(bytes.data)
+			text = text .. bytes.data
+			local prefix, suffix = text:match "(.*)(\n[^\n]*)"
+			callback(prefix)
+			text = suffix
 		until false
 		pipe:async_close()
 		if copyafter then self:copy() end
@@ -209,7 +220,16 @@ function runner:exec(command)
 	launcher:set_cwd(self.pwd)
 	launcher:setenv("TERM", "dumb")
 	launcher:setenv("PAGER", "cat")
-	self.subproc = launcher:spawnv { os.getenv "SHELL", "-c", command }
+	self.subproc = launcher:spawnv {
+		"flatpak-spawn",
+		"--host",
+		"--watch-bus",
+		"--env=TERM=dumb",
+		"--env=PAGER=cat",
+		os.getenv "SHELL",
+		"-c",
+		command,
+	}
 	if dopipein then self:paste() end
 	local function copycb(text)
 		self.copyqueuelines = self.copyqueuelines + 1
@@ -244,9 +264,8 @@ function runner:send(line)
 	stdin = Gio.DataOutputStream.new(stdin)
 	-- Make sure the running process receives this as a new line.
 	stdin:put_string(line .. "\n")
-	-- stdin:flush()
-	-- Sneak the input text before the output text.
-	self:putstring(line)
+	self:print(line .. "\n")
+	-- self:flush()
 	-- Make sure further output is prefixed with a line break.
 	if self.outputqueue:sub(1, 1) ~= "\n" then
 		self.outputqueue = "\n" .. self.outputqueue
@@ -321,17 +340,22 @@ local function newwin()
 			killbutton.visible = true
 			local line = self.text
 			self.text = ""
+			self.placeholder_text = "Send to running command…"
 			term:send(line)
 		end,
 	}
 	function term:on_close()
 		self.textview:grab_focus()
 		entry.sensitive = false
+		entry.placeholder_text = "Waiting for command to finish…"
 	end
 	function term:on_finish()
 		killbutton.visible = false
 		entry.sensitive = true
-		entry:grab_focus()
+		entry.placeholder_text = "Run a command…"
+		if not entry.has_focus then
+			entry:grab_focus_without_selecting()
+		end
 	end
 
 	local tbview = Adw.ToolbarView {
@@ -345,8 +369,8 @@ local function newwin()
 				end_packs = { killbutton },
 			},
 		},
-		bottom_bars = { entry },
 	}
+	tbview:add_bottom_bar(entry)
 
 	local window = Adw.ApplicationWindow {
 		application = app,
@@ -354,9 +378,16 @@ local function newwin()
 		width_request = 480,
 		height_request = 360,
 	}
+	if lib.get_is_devel() then
+		window:add_css_class "devel"
+	end
 
 	add_new_action(window, "close-stdin", function()
 		term:close()
+	end)
+
+	add_new_action(window, "focus-cmdbar", function()
+		entry:grab_focus_without_selecting()
 	end)
 
 	entry:grab_focus()
