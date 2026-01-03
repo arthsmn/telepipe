@@ -250,9 +250,10 @@ function runner:send(line)
 	local stdin = self.subproc:get_stdin_pipe()
 	if stdin:is_closed() or stdin:is_closing() then return end
 	stdin = Gio.DataOutputStream.new(stdin)
-	-- Make sure the running process receives this as a new line.
-	stdin:put_string(line .. "\n")
+	-- Print the user input before sending it, in case the program exits before the print is registered. Yes, this may matter.
 	self:print(line .. "\n")
+	self:flush()
+	stdin:put_string(line .. "\n")
 	-- Make sure further output is prefixed with a line break.
 	if self.outputqueue:sub(1, 1) ~= "\n" then
 		self.outputqueue = "\n" .. self.outputqueue
