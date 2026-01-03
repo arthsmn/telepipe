@@ -1,13 +1,7 @@
 --[[
-- Split async handling of stdout and stderr.
-- Queue up changes to the text view and have them be flushed regularly as well as when each of the pipes close.
-- Commands should run interactively when no input is piped in.
-	- 'exec' will need to be rewritten to be "send", which will exec a command if none is running, otherwise write the line to stdin of running command
-- Get project up and running normally so it doesn't have to run in a terminal
-	- can finally unpin the terminal, roflmao whatttt
+- Shell builtins
+	- cd
 - Will need to implement some shell builtins
-	- Maybe just use a GUI thing for cd
-	- Ctrl+D → close process inputfd if open
 	- Ctrl+P → previous command
 		- Ctrl+N → next command (after previous)
 	- Ctrl+Shift+C → kill running process (oh how the turntables turn)
@@ -154,17 +148,12 @@ function runner:ensurenewlines()
 	self.outputqueue = self.outputqueue:match "[^\n].*" or ""
 end
 
--- FIXME:
 function runner:handlepipe(pipe, callback, copyafter)
 	Gio.Async.start(function()
-		local text = ""
 		repeat
 			local bytes = pipe:async_read_bytes(4096)
 			if not bytes.data or #bytes.data == 0 then break end
-			text = text .. bytes.data
-			local prefix, suffix = text:match "(.*)(\n[^\n]*)"
-			callback(prefix)
-			text = suffix
+			callback(bytes.data)
 		until false
 		pipe:async_close()
 		if copyafter then self:copy() end
@@ -177,12 +166,10 @@ function runner:copy()
 	elseif #self.copyqueue > 0 then
 		local clipboard = Gdk.Display.get_default():get_clipboard()
 		clipboard:set(GObject.Value(GObject.Type.STRING, self.copyqueue))
-		local fmtstring = "copied %d line(s) to clipboard."
-		self:print(fmtstring:format(self.copyqueuelines))
+		self:print "copied output to clipboard.\n"
 	else
 		self:print "nothing to copy; clipboard has not been modified."
 	end
-	self.copyqueuelines = nil
 	self.copyqueue = nil
 end
 
@@ -214,9 +201,12 @@ function runner:exec(command)
 	if dopipein or dopipeout then
 		command = command:sub(2)
 	end
-	local launcher = Gio.SubprocessLauncher.new {
-		"STDIN_PIPE", "STDOUT_PIPE", "STDERR_PIPE",
-	}
+	local launcherargs = { "STDIN_PIPE", "STDOUT_PIPE", "STDERR_PIPE" }
+	if not dopipeout then
+		-- If the output isn't being copied, then the streams need to be merged.
+		launcherargs[3] = "STDERR_MERGE"
+	end
+	local launcher = Gio.SubprocessLauncher.new(launcherargs)
 	launcher:set_cwd(self.pwd)
 	launcher:setenv("TERM", "dumb")
 	launcher:setenv("PAGER", "cat")
@@ -232,7 +222,6 @@ function runner:exec(command)
 	}
 	if dopipein then self:paste() end
 	local function copycb(text)
-		self.copyqueuelines = self.copyqueuelines + 1
 		self.copyqueue = self.copyqueue .. text
 	end
 	local function printcb(text)
@@ -240,14 +229,13 @@ function runner:exec(command)
 	end
 	local stdout = self.subproc:get_stdout_pipe()
 	if dopipeout then
-		self.copyqueuelines = 0
 		self.copyqueue = ""
 		self:handlepipe(stdout, copycb, true)
+		local stderr = self.subproc:get_stderr_pipe()
+		self:handlepipe(stderr, printcb)
 	else
 		self:handlepipe(stdout, printcb)
 	end
-	local stderr = self.subproc:get_stderr_pipe()
-	self:handlepipe(stderr, printcb)
 	self:waitend()
 end
 
@@ -265,7 +253,6 @@ function runner:send(line)
 	-- Make sure the running process receives this as a new line.
 	stdin:put_string(line .. "\n")
 	self:print(line .. "\n")
-	-- self:flush()
 	-- Make sure further output is prefixed with a line break.
 	if self.outputqueue:sub(1, 1) ~= "\n" then
 		self.outputqueue = "\n" .. self.outputqueue
