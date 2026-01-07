@@ -14,6 +14,10 @@
 
 local lib = require "telepipelib"
 
+function lib.fmtdir(path)
+	return path:gsub("^" .. os.getenv "HOME", "~", 1)
+end
+
 -- Simple class implementation without inheritance.
 local function newclass(init)
 	local c = {}
@@ -57,6 +61,26 @@ for k, v in pairs(accels) do
 	app:set_accels_for_action(k, v)
 end
 
+-- SECTION: Important variables
+
+local windows = {}
+local runners = {}
+
+local function get_focused_window()
+	if not app.active_window then return end
+	return windows[app.active_window]
+end
+
+local function get_focused_runner()
+	local win = get_focused_window()
+	if not win then return end
+	local tabview = win.tabview
+	if not tabview then return end
+	local page = tabview.selected_page
+	if not page then return end
+	return runners[page.child]
+end
+
 -- SECTION: Command runner class
 
 local runner = newclass(function(self)
@@ -87,19 +111,68 @@ local runner = newclass(function(self)
 		end
 		oldupper = upper
 	end
+	self.chdirbutton = Gtk.Button {
+		icon_name = "folder-open-symbolic",
+		on_clicked = function()
+			self:chdir()
+		end,
+	}
+	self.killbutton = Gtk.Button {
+		icon_name = "edit-delete-symbolic",
+		tooltip_text = "Stop running command",
+		extra_css_classes = { "destructive-action" },
+		visible = false,
+		on_clicked = function()
+			self:kill()
+		end,
+	}
+	self.entry = Gtk.Entry {
+		placeholder_text = "Run a command…",
+		hexpand = true,
+		on_activate = function()
+			local text = self.entry.text
+			self.entry.text = ""
+			self:send(text)
+		end,
+	}
+	local box = Gtk.Box {
+		orientation = "HORIZONTAL",
+		extra_css_classes = { "linked" },
+		margin_top = 6,
+		margin_bottom = 6,
+		margin_start = 6,
+		margin_end = 6,
+		self.chdirbutton,
+		self.killbutton,
+		self.entry,
+	}
+	self.toolbarview = Adw.ToolbarView {
+		content = self.scrolledwin,
+		bottom_bar_style = "RAISED_BORDER",
+	}
+	self.toolbarview:add_bottom_bar(box)
+	runners[self.toolbarview] = self
 end)
 
-function runner:assertcallbacks()
-	assert(type(self.on_chdir) == "function")
-	assert(type(self.on_close) == "function")
-	assert(type(self.on_finish) == "function")
+function runner:grab()
+	self.entry:grab_focus_without_selecting()
 end
 
 function runner:getpwdlabel()
-	return self.pwd:gsub("^" .. os.getenv "HOME", "~", 1)
+	return lib.fmtdir(self.pwd)
+end
+
+function runner:gettitle()
+	return self.commandname, self:getpwdlabel(), nil
+end
+
+function runner:updatetitle()
+	if not self.settitle then return end
+	self:settitle(self:gettitle())
 end
 
 function runner:chdir()
+	if self.subproc then return end
 	local filedialog = Gtk.FileDialog {
 		initial_folder = Gio.File.new_for_path(self.pwd)
 	}
@@ -107,8 +180,11 @@ function runner:chdir()
 		local dir = filedialog:async_select_folder(app.active_window)
 		if dir then
 			self.pwd = dir:get_path()
+			self:ensurenewlines()
+			local message = "working directory	⇒	%s\n"
+			self:print(message:format(self:getpwdlabel()))
 		end
-		self:on_chdir()
+		self:updatetitle()
 	end)() --Call wrapped async context.
 end
 
@@ -173,31 +249,39 @@ function runner:copy()
 	self.copyqueue = nil
 end
 
-function runner:waitend()
+function runner:waitend(async)
 	if not self.subproc then return end
 	Gio.Async.start(function()
 		self.subproc:async_wait()
-		self:on_finish()
 		local status = self.subproc:get_status()
 		if status ~= 0 then
 			self:print(("exited with status code %d\n"):format(status))
 		end
+		self.commandname = nil
 		self.subproc = nil
+		self.chdirbutton.visible = true
+		self.killbutton.visible = false
+		self.entry.sensitive = true
+		self.entry.placeholder_text = "Run a command…"
+		self:updatetitle()
 	end)() -- Call wrapped async context.
 end
 
 function runner:exec(command)
 	if #command < 1 then return end
-	self:assertcallbacks()
 	local prefix = command:sub(1, 1)
 	local dopipein = prefix == ">" or prefix == "|"
 	local dopipeout = prefix == "<" or prefix == "|"
 	self:ensurenewlines()
 	if dopipein then
+		self.entry.sensitive = false
 		self:putstring "pasting to "
+	else
+		self.entry.placeholder_text = "Send to running command…"
 	end
 	self:putstring("⇒	" .. command)
 	self:print "\n"
+	self.commandname = command
 	if dopipein or dopipeout then
 		command = command:sub(2)
 	end
@@ -220,6 +304,8 @@ function runner:exec(command)
 		"-c",
 		command,
 	}
+	self.chdirbutton.visible = false
+	self.killbutton.visible = true
 	if dopipein then self:paste() end
 	local function copycb(text)
 		self.copyqueue = self.copyqueue .. text
@@ -236,13 +322,13 @@ function runner:exec(command)
 	else
 		self:handlepipe(stdout, printcb)
 	end
+	self:updatetitle()
 	self:waitend()
 end
 
 function runner:kill()
 	if not self.subproc then return end
 	self.subproc:force_exit()
-	self:on_finish()
 end
 
 function runner:send(line)
@@ -266,12 +352,12 @@ function runner:paste()
 		local clipboard = Gdk.Display.get_default():get_clipboard()
 		local inputtext = clipboard:async_read_text()
 		if not inputtext or #inputtext < 1 then return end
+		self.entry.sensitive = false
 		local stdin = self.subproc:get_stdin_pipe()
 		stdin = Gio.DataOutputStream.new(stdin)
 		stdin:put_string(inputtext)
 		stdin:async_flush()
 		stdin:async_close()
-		self:on_close()
 	end)() -- Call wrapped async context.
 end
 
@@ -280,8 +366,8 @@ function runner:close()
 	Gio.Async.start(function()
 		local stdin = self.subproc:get_stdin_pipe()
 		if stdin:is_closed() or stdin:is_closing() then return end
+		self.entry.sensitive = false
 		stdin:async_close()
-		self:on_close()
 	end)() -- Call wrapped async context.
 end
 
@@ -295,92 +381,182 @@ local function add_new_action(map, name, cb)
 	return action
 end
 
-local function newwin()
-	local term = runner()
-	local windowtitle = Adw.WindowTitle.new("Telepipe", term:getpwdlabel())
-	function term:on_chdir()
-		windowtitle.subtitle = self:getpwdlabel()
-	end
+local window = newclass(function(self)
+	self.windowtitle = Adw.WindowTitle.new("Telepipe", "")
 
-	local chdirbutton = Gtk.Button {
-		icon_name = "folder-open-symbolic",
+	local newbutton = Gtk.Button {
+		icon_name = "tab-new-symbolic",
 		on_clicked = function()
-			term:chdir()
-		end,
-	}
-	local killbutton = Gtk.Button {
-		icon_name = "edit-delete-symbolic",
-		tooltip_text = "Stop running command",
-		extra_css_classes = { "destructive-action" },
-		visible = false,
-		on_clicked = function()
-			term:kill()
+			self:newtab()
 		end,
 	}
 
-	local entry = Gtk.Entry {
-		margin_top = 6,
-		margin_bottom = 6,
-		margin_start = 6,
-		margin_end = 6,
-		placeholder_text = "Run a command…",
-		on_activate = function(self)
-			killbutton.visible = true
-			local line = self.text
-			self.text = ""
-			self.placeholder_text = "Send to running command…"
-			term:send(line)
-		end,
-	}
-	function term:on_close()
-		self.textview:grab_focus()
-		entry.sensitive = false
-		entry.placeholder_text = "Waiting for command to finish…"
+	self.tabview = Adw.TabView()
+	function self.tabview.on_page_attached(tabview, page)
+		local r = runners[page.child]
+		if not r then return end
+		self.toolbarview.top_bar_style = "RAISED_BORDER"
+		function r.settitle(r, title, subtitle, icon)
+			page.title = title or subtitle
+			if icon then
+				page.icon = Gio.Icon.new_for_string(icon)
+			else
+				page.icon = nil
+			end
+			if tabview.selected_page == page then
+				self.windowtitle.subtitle = subtitle
+			end
+		end
+		local title, subtitle = r:gettitle()
+		page.title = title or subtitle
+		self.windowtitle.subtitle = subtitle
 	end
-	function term:on_finish()
-		killbutton.visible = false
-		entry.sensitive = true
-		entry.placeholder_text = "Run a command…"
-		if not entry.has_focus then
-			entry:grab_focus_without_selecting()
+	function self.tabview.on_page_detached(tabview, page)
+		local r = runners[page.child]
+		if not r then return end
+		-- Stub it out to remove references to this tab view.
+		function r:settitle() end
+	end
+	function self.tabview.on_notify(tabview, spec)
+		if spec.name == "selected-page" and tabview.selected_page then
+			local r = runners[self.tabview.selected_page.child]
+			r:updatetitle()
+			r.entry:grab_focus_without_selecting()
 		end
 	end
+	function self.tabview.on_close_page(tabview, page)
+		local r = runners[page.child]
+		local do_close = true
+		if r and r.subproc then
+			do_close = false
+		end
+		self.tabview:close_page_finish(page, do_close)
+		if not do_close then
+			local body = "A command %q is running."
+			local name = r.commandname
+			if #name > 20 then
+				commandname = utf8.char(utf8.codepoint(name, 1, 20))
+			end
+			body = body:format(name)
+			local dlg = Adw.AlertDialog.new("Stop running command?", body)
+			dlg:add_response("close", "Keep running")
+			dlg:set_response_appearance("close", "DEFAULT")
+			dlg:add_response("discard", "Stop and close tab")
+			dlg:set_response_appearance("discard", "DESTRUCTIVE")
+			function dlg.on_response(dlg, response)
+				if response == "discard" then
+					r:kill()
+					runners[page.child] = nil
+					self.tabview:close_page(page)
+				end
+			end
+			dlg:choose(app.active_window)
+		else
+			runners[page.child] = nil
+			if self.tabview:get_n_pages() == 0 then
+				self.win.title = app_title
+				self.windowtitle.title = "Telepipe"
+				self.windowtitle.subtitle = ""
+				self.toolbarview.top_bar_style = "FLAT"
+			end
+		end
+		return true
+	end
 
-	local tbview = Adw.ToolbarView {
-		content = term.scrolledwin,
-		top_bar_style = "RAISED_BORDER",
-		bottom_bar_style = "RAISED_BORDER",
+	self.tabbar = Adw.TabBar {
+		view = self.tabview,
+	}
+
+	self.toolbarview = Adw.ToolbarView {
+		content = self.tabview,
+		top_bar_style = "FLAT",
 		top_bars = {
 			Adw.HeaderBar {
-				title_widget = windowtitle,
-				start_packs = { chdirbutton },
-				end_packs = { killbutton },
+				title_widget = self.windowtitle,
+				start_packs = { newbutton },
+--				end_packs = {},
 			},
+			self.tabbar,
 		},
 	}
-	tbview:add_bottom_bar(entry)
 
-	local window = Adw.ApplicationWindow {
+	self.win = Adw.ApplicationWindow {
 		application = app,
-		content = tbview,
+		content = self.toolbarview,
 		width_request = 480,
 		height_request = 360,
 	}
-	if lib.get_is_devel() then
-		window:add_css_class "devel"
+	function self.win.on_close_request()
+		local n_pages = self.tabview:get_n_pages()
+		local running = {}
+		for i = 1, n_pages do
+			local page = self.tabview:get_nth_page(n_pages - i)
+			local r = runners[page.child]
+			if r and r.subproc then
+				table.insert(running, r)
+			end
+		end
+		local function close()
+			for _, r in ipairs(running) do
+				r:kill()
+			end
+			Gio.Async.start(function()
+				-- Need to wait for the subprocesses to actually finish befor attempting to close the window again.
+				for _, r in ipairs(running) do
+					if r.subproc then r.subproc:async_wait() end
+				end
+				-- Give it a tiny wait.
+				GLib.timeout_add(20, GLib.PRIORITY_DEFAULT, function()
+					self.win:close()
+				end)
+			end)()
+		end
+		if #running > 0 then
+			local dlg = Adw.AlertDialog.new("Close window?", "There are running commands.")
+			dlg:add_response("cancel", "Keep open")
+			dlg:set_response_appearance("cancel", "DEFAULT")
+			dlg:add_response("discard", "Stop and close")
+			dlg:set_response_appearance("discard", "DESTRUCTIVE")
+			function dlg:on_response(response)
+				if response == "discard" then close() end
+			end
+			dlg:choose(self.win)
+			return true
+		else
+			windows[self.win] = nil
+			-- Explicitly close each runner page to free their resources. Cleaner than hooking into e.g. __gc.
+			for i = 1, n_pages do
+				local page = self.tabview:get_nth_page(n_pages - i)
+				self.tabview:close_page(page)
+			end
+			return false
+		end
 	end
 
-	add_new_action(window, "close-stdin", function()
+	add_new_action(self.win, "close-stdin", function()
 		term:close()
 	end)
 
-	add_new_action(window, "focus-cmdbar", function()
-		entry:grab_focus_without_selecting()
+	add_new_action(self.win, "focus-cmdbar", function()
+		local r = get_focused_runner()
+		if not r then return end
+		r:grab()
 	end)
 
-	entry:grab_focus()
-	window:present()
+	if lib.get_is_devel() then
+		self.win:add_css_class "devel"
+	end
+	windows[self.win] = self
+	self.win:present()
+end)
+
+function window:newtab()
+	local r = runner()
+	local page = self.tabview:add_page(r.toolbarview)
+	self.tabview:set_selected_page(page)
 end
+
+-- SECTION: App startup
 
 function app:on_activate()
 	if not app.active_window then return end
@@ -388,7 +564,7 @@ function app:on_activate()
 end
 
 function app:on_startup()
-	newwin()
+	window()
 end
 
 return app:run()
