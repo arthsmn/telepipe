@@ -1,13 +1,12 @@
 --[[
 - Shell builtins
 	- cd
-- Will need to implement some shell builtins
+- Shortcut
 	- Ctrl+P → previous command
 		- Ctrl+N → next command (after previous)
 	- Ctrl+Shift+C → kill running process (oh how the turntables turn)
 - New view where each command is a list entry?
 	- dunno how I feel about this, it could very easily get cumbersome and i kinda like the current deal, it could end up becoming quite complicated for no fucking reason
-- Tabs
 ]]--
 
 -- SECTION: Helper functions
@@ -86,6 +85,7 @@ end
 local runner = newclass(function(self)
 	self.pwd = os.getenv "HOME"
 	self.outputqueue = ""
+	self.history = {}
 	self.textview = Gtk.TextView {
 		top_margin = 12,
 		bottom_margin = 12,
@@ -126,6 +126,13 @@ local runner = newclass(function(self)
 			self:kill()
 		end,
 	}
+	self.historybutton = Gtk.MenuButton {
+		visible = false,
+		direction = "UP",
+	}
+	self.historybutton:set_create_popup_func(function()
+		self:createpopup()
+	end)
 	self.entry = Gtk.Entry {
 		placeholder_text = "Run a command…",
 		hexpand = true,
@@ -145,6 +152,7 @@ local runner = newclass(function(self)
 		self.chdirbutton,
 		self.killbutton,
 		self.entry,
+		self.historybutton,
 	}
 	self.toolbarview = Adw.ToolbarView {
 		content = self.scrolledwin,
@@ -153,6 +161,83 @@ local runner = newclass(function(self)
 	self.toolbarview:add_bottom_bar(box)
 	runners[self.toolbarview] = self
 end)
+
+function runner:createpopup()
+	local histbox = Gtk.ListBox {
+		selection_mode = "NONE",
+		valign = "END",
+		width_request = 300,
+	}
+	for i, command in ipairs(self.history) do
+		local box = Gtk.Box {
+			orientation = "HORIZONTAL",
+			spacing = 6,
+			margin_top = 6,
+			margin_bottom = 6,
+			margin_start = 6,
+			margin_end = 6,
+			Gtk.Label {
+				label = command,
+				hexpand = true,
+				ellipsize = "END",
+			},
+		}
+		local lbox = Gtk.Box {
+			orientation = "HORIZONTAL",
+			extra_css_classes = { "linked" },
+		}
+		lbox:append(Gtk.Button {
+			icon_name = "edit-redo-symbolic",
+			tooltip_text = "Run command again",
+			on_clicked = function()
+				table.remove(self.history, i)
+				self:exec(command)
+				self.historybutton.popover:popdown()
+				self.historybutton.popover = nil
+			end,
+		})
+		lbox:append(Gtk.Button {
+			icon_name = "edit-copy-symbolic",
+			tooltip_text = "Copy command to clipboard",
+			on_clicked = function()
+				local clipboard = Gdk.Display.get_default():get_clipboard()
+				clipboard:set(GObject.Value(
+					GObject.Type.STRING, command))
+				self.historybutton.popover:popdown()
+				self.historybutton.popover = nil
+			end,
+		})
+		lbox:append(Gtk.Button {
+			icon_name = "edit-delete-symbolic",
+			tooltip_text = "Remove from history",
+			on_clicked = function()
+				table.remove(self.history, i)
+				self.historybutton.visible = #self.history > 0
+				self.historybutton.popover:popdown()
+				self.historybutton.popover = nil
+			end,
+		})
+		box:append(lbox)
+		histbox:append(box)
+	end
+	local scrolled = Gtk.ScrolledWindow {
+		child = histbox,
+		max_content_height = 300,
+		hscrollbar_policy = "NEVER",
+		propagate_natural_height = true,
+		on_map = function(self)
+			self.vadjustment.value = self.vadjustment.upper
+		end,
+	}
+	self.historybutton.popover = Gtk.Popover {
+		halign = "END",
+		child = scrolled,
+		on_closed = function()
+			self.historybutton.popover = nil
+			self.historybutton.active = false
+		end,
+	}
+end
 
 function runner:grab()
 	self.entry:grab_focus_without_selecting()
@@ -260,6 +345,7 @@ function runner:waitend(async)
 		self.commandname = nil
 		self.subproc = nil
 		self.chdirbutton.visible = true
+		self.historybutton.visible = #self.history > 0
 		self.killbutton.visible = false
 		self.entry.sensitive = true
 		self.entry.placeholder_text = "Run a command…"
@@ -281,6 +367,7 @@ function runner:exec(command)
 	end
 	self:putstring("⇒	" .. command)
 	self:print "\n"
+	table.insert(self.history, command)
 	self.commandname = command
 	if dopipein or dopipeout then
 		command = command:sub(2)
@@ -305,6 +392,7 @@ function runner:exec(command)
 		command,
 	}
 	self.chdirbutton.visible = false
+	self.historybutton.visible = false
 	self.killbutton.visible = true
 	if dopipein then self:paste() end
 	local function copycb(text)
@@ -483,6 +571,8 @@ local window = newclass(function(self)
 	self.win = Adw.ApplicationWindow {
 		application = app,
 		content = self.toolbarview,
+		default_width = 640,
+		default_height = 480,
 		width_request = 480,
 		height_request = 360,
 	}
