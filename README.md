@@ -8,7 +8,7 @@ Telepipe is a graphical command-line shell for GNOME. It allows you to run comma
 
 Despite appearances, it is **not a terminal**. This means that TUI apps will not work in Telepipe, but most text-mode programs should work without issue.
 
-Telepipe's name is a portmanteau of *teletypewriter* (or *teletype*), a device which in this context allows the user to run a command-line shell from a physical typewriter, and *pipe*, a common command-line feature on UNIX and UNIX-like systems which allows the output of one command to be used as the input of another commnand. Pipelines are an especially powerful way to leverage command-line applications for advanced text editing and formatting, and Telepipe [provides advanced features](docs/Clipboard Redirection.md) for using shell pipelines with the clipboard.
+Telepipe's name is a portmanteau of *teletypewriter* (or *teletype*), a device which in this context allows the user to run a command-line shell from a physical typewriter, and *pipe*, a common command-line feature on UNIX and UNIX-like systems which allows the output of one command to be used as the input of another commnand. Pipelines are an especially powerful way to leverage command-line applications for advanced text editing and formatting, and Telepipe [provides advanced features](https://github.com/vtrlx/telepipe/blob/trunk/docs/Clipboard%20Redirection.md) for using shell pipelines with the clipboard.
 
 ## Installing
 
@@ -46,7 +46,7 @@ The Ctrl+C keyboard accelerator is bound to the copy action by default. To stop 
 
 **Clipboard redirection**: Commands run in Telepipe can use the current clipboard contents as their input by prefixing with `>`, they can automatically their output to the clipboard by prefixing with `<`, or they can do both by prefixing with `|`.
 
-More information—including examples—is available in [this feature's documentation](docs/Clipboard Redirection.md).
+More information—including examples—is available in [this feature's documentation](https://github.com/vtrlx/telepipe/blob/trunk/docs/Clipboard%20Redirection.md).
 
 **Output editing:** The command output section is a full text editor. This allows you to make notes, amend output for further execution, or quickly erase sections of command output which are not longer needed. Additionally, selections from the terminal output can be dragged-and-dropped down into the command entry. Because output from `ls` can be quickly dropped into further commands, this greatly alleviates the need for completions.
 
