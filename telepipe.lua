@@ -13,8 +13,13 @@
 
 local lib = require "telepipelib"
 
+-- Replace's the user's $HOME with the tilde "~" character, a common convention when displaying paths.
 function lib.fmtdir(path)
 	return path:gsub("^" .. os.getenv "HOME", "~", 1)
+end
+
+function lib.strip(text)
+	return text:gsub("^%s*", ""):gsub("%s*$", "")
 end
 
 -- Simple class implementation without inheritance.
@@ -55,6 +60,8 @@ local app = Adw.Application {
 local accels = {
 	["win.close-stdin"] = { "<Ctrl>D" },
 	["win.focus-cmdbar"] = { "<Ctrl>K" },
+	["win.new-tab"] = { "<Ctrl>T" },
+	["win.close-tab"] = { "<Ctrl>W" },
 }
 for k, v in pairs(accels) do
 	app:set_accels_for_action(k, v)
@@ -163,14 +170,16 @@ local runner = newclass(function(self)
 end)
 
 function runner:createpopup()
+	local maxwidth = app.active_window.width * 0.75
 	local histbox = Gtk.ListBox {
 		selection_mode = "NONE",
 		valign = "END",
-		width_request = 300,
+		width_request = maxwidth,
 	}
 	for i, command in ipairs(self.history) do
 		local box = Gtk.Box {
 			orientation = "HORIZONTAL",
+			halign = "FILL",
 			spacing = 6,
 			margin_top = 6,
 			margin_bottom = 6,
@@ -178,17 +187,24 @@ function runner:createpopup()
 			margin_end = 6,
 			Gtk.Label {
 				label = command,
+				halign = "START",
 				hexpand = true,
-				ellipsize = "END",
+				margin_start = 6,
+				margin_end = 24,
+				selectable = true,
+				wrap = true,
+				wrap_mode = "WORD_CHAR",
 			},
 		}
 		local lbox = Gtk.Box {
 			orientation = "HORIZONTAL",
+			halign = "END",
 			extra_css_classes = { "linked" },
 		}
 		lbox:append(Gtk.Button {
 			icon_name = "edit-redo-symbolic",
 			tooltip_text = "Run command again",
+			valign = "CENTER",
 			on_clicked = function()
 				table.remove(self.history, i)
 				self:exec(command)
@@ -199,6 +215,7 @@ function runner:createpopup()
 		lbox:append(Gtk.Button {
 			icon_name = "edit-copy-symbolic",
 			tooltip_text = "Copy command to clipboard",
+			valign = "CENTER",
 			on_clicked = function()
 				local clipboard = Gdk.Display.get_default():get_clipboard()
 				clipboard:set(GObject.Value(
@@ -209,12 +226,17 @@ function runner:createpopup()
 		})
 		lbox:append(Gtk.Button {
 			icon_name = "edit-delete-symbolic",
+			extra_css_classes = { "destructive-action" },
 			tooltip_text = "Remove from history",
+			valign = "CENTER",
 			on_clicked = function()
-				table.remove(self.history, i)
-				self.historybutton.visible = #self.history > 0
-				self.historybutton.popover:popdown()
-				self.historybutton.popover = nil
+				table.remove(self.history, box.parent:get_index() + 1)
+				histbox:remove(box.parent)
+				if #self.history == 0 then
+					self.historybutton.visible = false
+					self.historybutton.popover:popdown()
+					self.historybutton.popover = nil
+				end
 			end,
 		})
 		box:append(lbox)
@@ -223,10 +245,12 @@ function runner:createpopup()
 	local scrolled = Gtk.ScrolledWindow {
 		child = histbox,
 		max_content_height = 300,
-		hscrollbar_policy = "NEVER",
 		propagate_natural_height = true,
+		hscrollbar_policy = "NEVER",
 		on_map = function(self)
-			self.vadjustment.value = self.vadjustment.upper
+			GLib.timeout_add(20, GLib.PRIORITY_DEFAULT, function()
+				self.vadjustment.value = self.vadjustment.upper
+			end)
 		end,
 	}
 	self.historybutton.popover = Gtk.Popover {
@@ -354,6 +378,7 @@ function runner:waitend(async)
 end
 
 function runner:exec(command)
+	command = lib.strip(command)
 	if #command < 1 then return end
 	local prefix = command:sub(1, 1)
 	local dopipein = prefix == ">" or prefix == "|"
@@ -370,7 +395,7 @@ function runner:exec(command)
 	table.insert(self.history, command)
 	self.commandname = command
 	if dopipein or dopipeout then
-		command = command:sub(2)
+		command = lib.strip(command:sub(2))
 	end
 	local launcherargs = { "STDIN_PIPE", "STDOUT_PIPE", "STDERR_PIPE" }
 	if not dopipeout then
@@ -624,7 +649,9 @@ local window = newclass(function(self)
 	end
 
 	add_new_action(self.win, "close-stdin", function()
-		term:close()
+		local r = get_focused_runner()
+		if not r then return end
+		r:close()
 	end)
 
 	add_new_action(self.win, "focus-cmdbar", function()
@@ -633,11 +660,22 @@ local window = newclass(function(self)
 		r:grab()
 	end)
 
+	add_new_action(self.win, "new-tab", function()
+		self:newtab()
+	end)
+
+	add_new_action(self.win, "close-tab", function()
+		local page = self.tabview.selected_page
+		if not page then return end
+		self.tabview:close_page(page)
+	end)
+
 	if lib.get_is_devel() then
 		self.win:add_css_class "devel"
 	end
 	windows[self.win] = self
 	self.win:present()
+	self:newtab()
 end)
 
 function window:newtab()
