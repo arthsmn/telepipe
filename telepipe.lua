@@ -62,6 +62,7 @@ local accels = {
 	["win.focus-cmdbar"] = { "<Ctrl>K" },
 	["win.new-tab"] = { "<Ctrl>T" },
 	["win.close-tab"] = { "<Ctrl>W" },
+	["win.new-win"] = { "<Ctrl>N" },
 }
 for k, v in pairs(accels) do
 	app:set_accels_for_action(k, v)
@@ -494,7 +495,8 @@ local function add_new_action(map, name, cb)
 	return action
 end
 
-local window = newclass(function(self)
+local window
+window = newclass(function(self)
 	self.windowtitle = Adw.WindowTitle.new("Telepipe", "")
 
 	local newbutton = Gtk.Button {
@@ -574,6 +576,10 @@ local window = newclass(function(self)
 			end
 		end
 		return true
+	end
+	function self.tabview.on_create_window()
+		local win = window()
+		return win.tabview
 	end
 
 	self.tabbar = Adw.TabBar {
@@ -664,6 +670,11 @@ local window = newclass(function(self)
 		self:newtab()
 	end)
 
+	add_new_action(self.win, "new-win", function()
+		local win = window()
+		win:newtab()
+	end)
+
 	add_new_action(self.win, "close-tab", function()
 		local page = self.tabview.selected_page
 		if not page then return end
@@ -675,7 +686,6 @@ local window = newclass(function(self)
 	end
 	windows[self.win] = self
 	self.win:present()
-	self:newtab()
 end)
 
 function window:newtab()
@@ -692,7 +702,8 @@ function app:on_activate()
 end
 
 function app:on_startup()
-	window()
+	local win = window()
+	win:newtab()
 end
 
 return app:run()
