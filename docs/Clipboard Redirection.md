@@ -1,6 +1,6 @@
 # Clipboard Redirection
 
-Telepipe's defining feature is its ability to redirect the clipboard's contents into commands and redirect command output into the keyboard. It is even possible to do both at once, enabling the use of command-line applications to quickly transform the contents of the clipboard. As the clipboard is nearly-universally supported, clipboard redirection grants advanced text editing capabilities to **virtually any app.**
+Telepipe's defining feature is its ability to redirect the clipboard's contents into commands and redirect command output into the clipboard. It is even possible to do both at once, enabling the use of command-line applications to quickly transform the contents of the clipboard. As the clipboard is nearly-universally supported, clipboard redirection grants advanced text editing capabilities to **virtually any app.**
 
 The examples here use programs from GNU coreutils—which should be available on any Linux machine by default—unless otherwise noted.
 
@@ -31,7 +31,7 @@ This feature makes it easy to seamlessly use the clipboard to interact with comm
 - `<date`
 	- Copies the current date and time into the clipboard.
 - `<curl example.com`
-	- Copies the source of the webpage at [http://example.com/] to the clipboard.
+	- Copies the source of the webpage at http://example.com/ to the clipboard.
 	- Requires [curl](https://curl.se/) to be installed.
 
 ### Transforming the Clipboard
@@ -44,22 +44,32 @@ This feature makes it easy to seamlessly use the clipboard to interact with comm
 	- Formats the clipboard's contents to limit lines to a length of 72 characters.
 	- Useful for certain old software which requires lines to be limited in length.
 - `|pandoc -f markdown -t html`
-	- Transform's the clipboard's contents from HTML to Markdown.
+	- Transform's the clipboard's contents from Markdown to HTML.
 	- Requires [Pandoc](https://pandoc.org/) to be installed.
 
 ## Formatting Code
 
-Many programs with embedded text editors do not support advanced text editing conventions such as selection indentation/deindentation or expansion of tabs into spaces and vice-versa. Most users will prefer to instead write text in other editors and then paste the result into the target app, but clipboard redirection makes it easier to leverage advanced text editing without having to edit in two places.
+Many programs with embedded text editors do not support advanced text editing conventions such as selection indentation/deindentation or expansion of tabs into spaces and vice-versa. Most users will prefer to instead write text in other editors and then paste the result into the target app, but clipboard redirection makes it easier to leverage advanced text editing without needing to edit in two places at once.
 
 ### Adjusting Indentation Levels
 
 Using literal tab or space characters, `sed` provides a simple way to indent or deindent text.
 
-To indent, use `|sed "s/^/	/"` and too unindent, use `|sed "s/^	//"`.
+To indent,
 
-Notice the quotations in both of these examples! They are required.
+```sh
+|sed "s/^/	/"
+```
 
-It's useful to save these two commands to scripts with short names if you intend to use them a lot. Good names are `t+` to add a level of indentation and `t-` to remove a level of indentation.
+To unindent,
+
+```sh
+|sed "s/^	//"`.
+```
+
+Notice the quotations in both of these examples! They are required when working with whitespace characters. These examples also use tab characters, which must be pasted into Telepipe's command entry.
+
+Because entering tab characters into Telepipe can be tricky, it's wise to save these one-liners as scripts. Good names for them would be `i+` to add a level of indentation, and `i-` to subtract a level of indentation.
 
 ### Expanding/Unexpanding Tab Indentation
 
@@ -97,18 +107,18 @@ unexpand -i -t $NUM_OF_SPACES -
 
 The two scripts should be identical save for the invocation of `expand` or `unexpand` at the end.
 
-Invoke these scripts from Telepipe by calling `|t2s` to expand tabs to 8 spaces (by default) or by for instance entering `|t2s 4` to expand tabs to 4 spaces. The inverse can be done by executing `|s2t` or `|s2t 4`.
+Run these scripts from Telepipe by calling `|t2s` to expand tabs to 8 spaces (by default) or by for instance entering `|t2s 4` to expand tabs to 4 spaces. The inverse can be done by executing `|s2t` or `|s2t 4`.
 
 ### Tying It All Together
 
-Command pipelines are designed to compose various programs together using a simple and flexible medium: text. Telepipe is no exception in this regard—it makes it much easier to assemble text processing pipelines.
+Command pipelines are designed to compose various programs together using a simple and flexible medium: text. Telepipe is no exception in this regard—this app makes it much easier to assemble and use text processing pipelines.
 
-Consider the 4 indentation scripts given in the previous example. If you prefer writing code using spaces instead of tabs for indentation, then the `t+` and `t-` scripts won't work properly. You could conceivably modify the scripts to handle this case, but you *already have the solution*.
+Consider the 4 indentation scripts given in the previous example. If you prefer writing code using spaces instead of tabs for indentation, then the `i+` and `i-` scripts won't work properly. You could conceivably modify the scripts to handle this case, but you *already have the solution*.
 
 To indent the clipboard's contents by 4 spaces in Telepipe using only these scripts, enter this command:
 
 ```
-|s2t 4 |t+ |t2s 4
+|s2t 4 |i+ |t2s 4
 ```
 
-This pipeline will unexpand 4-space indents back into tab characters, then indents the entire input by one tab, then expands the tabs back into 4-space indents, using only the scripts that were written in the previous two sections. It is but a brief glimpse into the lightweight flexibility provided by the command line, which can be easily leveraged with Telepipe.
+This pipeline will unexpand 4-space indents back into tab characters, indent the entire input by one tab, then expand the tabs back into 4-space indents—all using only the scripts that were written in the previous two sections. Of course, nothing is stopping you from writing more scripts, but it's easier to remember a small number of scripts if you have the ability to compose them to gain more advanced functionality.
