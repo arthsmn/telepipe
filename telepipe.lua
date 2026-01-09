@@ -1,17 +1,16 @@
 --[[
-- Shell builtins
+- 🍔
+	- Maybe find a way to link the README and online manual
+- Built-in commands
 	- cd
-- Shortcut
-	- Ctrl+P → previous command
-		- Ctrl+N → next command (after previous)
-	- Ctrl+Shift+C → kill running process (oh how the turntables turn)
-- New view where each command is a list entry?
-	- dunno how I feel about this, it could very easily get cumbersome and i kinda like the current deal, it could end up becoming quite complicated for no fucking reason
 ]]--
 
 -- SECTION: Helper functions
 
 local lib = require "telepipelib"
+
+local app_id = lib.get_app_id()
+local app_title = "Telepipe"
 
 -- Replace's the user's $HOME with the tilde "~" character, a common convention when displaying paths.
 function lib.fmtdir(path)
@@ -23,7 +22,7 @@ function lib.strip(text)
 end
 
 -- Simple class implementation without inheritance.
-local function newclass(init)
+function lib.newclass(init)
 	local c = {}
 	local mt = {}
 	c.__index = c
@@ -63,9 +62,18 @@ local accels = {
 	["win.new-tab"] = { "<Ctrl>T" },
 	["win.close-tab"] = { "<Ctrl>W" },
 	["win.new-win"] = { "<Ctrl>N" },
+	["win.shortcuts"] = { "<Ctrl><Shift>question" },
 }
 for k, v in pairs(accels) do
 	app:set_accels_for_action(k, v)
+end
+
+function lib.addnewaction(map, name, cb)
+	local action = Gio.SimpleAction.new(name)
+	action.enabled = true
+	action.on_activate = cb
+	map:add_action(action)
+	return action
 end
 
 -- SECTION: Important variables
@@ -90,7 +98,7 @@ end
 
 -- SECTION: Command runner class
 
-local runner = newclass(function(self)
+local runner = lib.newclass(function(self)
 	self.pwd = os.getenv "HOME"
 	self.outputqueue = ""
 	self.history = {}
@@ -141,26 +149,41 @@ local runner = newclass(function(self)
 	self.historybutton:set_create_popup_func(function()
 		self:createpopup()
 	end)
+	self.sendbutton = Gtk.Button {
+		icon_name = "media-playback-start-symbolic",
+		tooltip_text = "Run command",
+		sensitive = false,
+		on_clicked = function()
+			self:doactivate()
+		end,
+	}
 	self.entry = Gtk.Entry {
 		placeholder_text = "Run a command…",
 		hexpand = true,
+		on_changed = function()
+			self.sendbutton.sensitive = #self.entry.text > 0
+		end,
 		on_activate = function()
-			local text = self.entry.text
-			self.entry.text = ""
-			self:send(text)
+			self:doactivate()
 		end,
 	}
-	local box = Gtk.Box {
+	local lbox = Gtk.Box {
 		orientation = "HORIZONTAL",
 		extra_css_classes = { "linked" },
-		margin_top = 6,
-		margin_bottom = 6,
-		margin_start = 6,
-		margin_end = 6,
 		self.chdirbutton,
 		self.killbutton,
 		self.entry,
 		self.historybutton,
+	}
+	local box = Gtk.Box {
+		orientation = "HORIZONTAL",
+		margin_top = 6,
+		margin_bottom = 6,
+		margin_start = 6,
+		margin_end = 6,
+		spacing = 6,
+		lbox,
+		self.sendbutton,
 	}
 	self.toolbarview = Adw.ToolbarView {
 		content = self.scrolledwin,
@@ -169,6 +192,13 @@ local runner = newclass(function(self)
 	self.toolbarview:add_bottom_bar(box)
 	runners[self.toolbarview] = self
 end)
+
+function runner:doactivate()
+	if #self.entry.text == 0 then return end
+	local text = self.entry.text
+	self.entry.text = ""
+	self:send(text)
+end
 
 function runner:createpopup()
 	local maxwidth = app.active_window.width * 0.75
@@ -207,10 +237,10 @@ function runner:createpopup()
 			tooltip_text = "Run command again",
 			valign = "CENTER",
 			on_clicked = function()
-				table.remove(self.history, i)
-				self:exec(command)
+				table.remove(self.history, box.parent:get_index() + 1)
 				self.historybutton.popover:popdown()
 				self.historybutton.popover = nil
+				self:exec(command)
 			end,
 		})
 		lbox:append(Gtk.Button {
@@ -374,6 +404,9 @@ function runner:waitend(async)
 		self.killbutton.visible = false
 		self.entry.sensitive = true
 		self.entry.placeholder_text = "Run a command…"
+		self.sendbutton.icon_name = "media-playback-start-symbolic"
+		self.sendbutton.tooltip_text = "Run command"
+		if #self.entry.text > 0 then self.sendbutton.sensitive = true end
 		self:updatetitle()
 	end)() -- Call wrapped async context.
 end
@@ -390,6 +423,7 @@ function runner:exec(command)
 		self:putstring "pasting to "
 	else
 		self.entry.placeholder_text = "Send to running command…"
+		self.sendbutton.tooltip_text = "Send to running command"
 	end
 	self:putstring("⇒	" .. command)
 	self:print "\n"
@@ -420,6 +454,8 @@ function runner:exec(command)
 	self.chdirbutton.visible = false
 	self.historybutton.visible = false
 	self.killbutton.visible = true
+	self.sendbutton.icon_name = "send-to-symbolic"
+	self.sendbutton.tooltip_text = "Send to running command"
 	if dopipein then self:paste() end
 	local function copycb(text)
 		self.copyqueue = self.copyqueue .. text
@@ -481,29 +517,69 @@ function runner:close()
 		local stdin = self.subproc:get_stdin_pipe()
 		if stdin:is_closed() or stdin:is_closing() then return end
 		self.entry.sensitive = false
+		self.sendbutton.sensitive = false
 		stdin:async_close()
 	end)() -- Call wrapped async context.
 end
 
--- SECTION: Application window
+-- SECTION: Application menus
 
-local function add_new_action(map, name, cb)
-	local action = Gio.SimpleAction.new(name)
-	action.enabled = true
-	action.on_activate = cb
-	map:add_action(action)
-	return action
+local appmenu = Gio.Menu()
+appmenu:append("New Window", "win.new-win")
+appmenu:append("Keyboard Shortcuts", "win.shortcuts")
+appmenu:append("About " .. app_title, "win.about")
+
+local shortcutsdialog = Adw.ShortcutsDialog {
+	Adw.ShortcutsSection {
+		title = app_title,
+		Adw.ShortcutsItem.new_from_action("New tab", "win.new-tab"),
+		Adw.ShortcutsItem.new_from_action("New window", "win.new-win"),
+		Adw.ShortcutsItem.new_from_action("Show keyboard shortcuts", "win.shortcuts"),
+	},
+	Adw.ShortcutsSection {
+		title = "Runner",
+		Adw.ShortcutsItem.new_from_action("Signal end of input", "win.close-stdin"),
+		Adw.ShortcutsItem.new_from_action("Focus command entry", "win.focus-cmdbar"),
+		Adw.ShortcutsItem.new_from_action("Close tab", "win.close-tab"),
+	},
+}
+
+local function about(parent)
+	local aboutdlg = Adw.AboutDialog {
+		application_icon = app_id,
+		application_name = app_title,
+		copyright = "© 2026 Victoria Lacroix",
+		developer_name = "Victoria Lacroix",
+		issue_url = "https://github.com/vtrlx/telepipe/issues/new",
+		license_type = "GPL_3_0",
+		version = lib.get_app_ver(),
+		website = "https://www.vtrlx.ca/apps/telepipe/",
+	}
+
+	aboutdlg:add_link("Contact the Developer", "mailto:victoria@vtrlx.ca?subject=Telepipe App")
+
+	aboutdlg:present(parent)
 end
 
+-- SECTION: Application window
+
 local window
-window = newclass(function(self)
-	self.windowtitle = Adw.WindowTitle.new("Telepipe", "")
+window = lib.newclass(function(self)
+	self.windowtitle = Adw.WindowTitle.new(app_title, "")
 
 	local newbutton = Gtk.Button {
 		icon_name = "tab-new-symbolic",
 		on_clicked = function()
 			self:newtab()
 		end,
+	}
+
+	local menupopover = Gtk.PopoverMenu.new_from_model(appmenu)
+	menupopover.halign = "END"
+	local menubutton = Gtk.MenuButton {
+		direction = "DOWN",
+		icon_name = "open-menu-symbolic",
+		popover = menupopover,
 	}
 
 	self.tabview = Adw.TabView()
@@ -519,6 +595,7 @@ window = newclass(function(self)
 				page.icon = nil
 			end
 			if tabview.selected_page == page then
+				self.win.title = subtitle
 				self.windowtitle.subtitle = subtitle
 			end
 		end
@@ -570,7 +647,7 @@ window = newclass(function(self)
 			runners[page.child] = nil
 			if self.tabview:get_n_pages() == 0 then
 				self.win.title = app_title
-				self.windowtitle.title = "Telepipe"
+				self.windowtitle.title = app_title
 				self.windowtitle.subtitle = ""
 				self.toolbarview.top_bar_style = "FLAT"
 			end
@@ -593,7 +670,7 @@ window = newclass(function(self)
 			Adw.HeaderBar {
 				title_widget = self.windowtitle,
 				start_packs = { newbutton },
---				end_packs = {},
+				end_packs = { menubutton },
 			},
 			self.tabbar,
 		},
@@ -601,6 +678,7 @@ window = newclass(function(self)
 
 	self.win = Adw.ApplicationWindow {
 		application = app,
+		title = app_title,
 		content = self.toolbarview,
 		default_width = 640,
 		default_height = 480,
@@ -654,31 +732,35 @@ window = newclass(function(self)
 		end
 	end
 
-	add_new_action(self.win, "close-stdin", function()
+	lib.addnewaction(self.win, "close-stdin", function()
 		local r = get_focused_runner()
 		if not r then return end
 		r:close()
 	end)
 
-	add_new_action(self.win, "focus-cmdbar", function()
+	lib.addnewaction(self.win, "focus-cmdbar", function()
 		local r = get_focused_runner()
 		if not r then return end
 		r:grab()
 	end)
 
-	add_new_action(self.win, "new-tab", function()
+	lib.addnewaction(self.win, "new-tab", function()
 		self:newtab()
 	end)
 
-	add_new_action(self.win, "new-win", function()
+	lib.addnewaction(self.win, "new-win", function()
 		local win = window()
 		win:newtab()
 	end)
 
-	add_new_action(self.win, "close-tab", function()
+	lib.addnewaction(self.win, "close-tab", function()
 		local page = self.tabview.selected_page
 		if not page then return end
 		self.tabview:close_page(page)
+	end)
+
+	lib.addnewaction(self.win, "about", function()
+		about(self.win)
 	end)
 
 	if lib.get_is_devel() then
