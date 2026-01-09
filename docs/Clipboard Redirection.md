@@ -64,7 +64,7 @@ To indent,
 To unindent,
 
 ```sh
-|sed "s/^	//"`.
+|sed "s/^	//"
 ```
 
 Notice the quotations in both of these examples! They are required when working with whitespace characters. These examples also use tab characters, which must be pasted into Telepipe's command entry.
