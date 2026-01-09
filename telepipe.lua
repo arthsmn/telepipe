@@ -1,6 +1,8 @@
 --[[
 - 🍔
 	- Maybe find a way to link the README and online manual
+- webpage
+	https://www.vtrlx.ca/apps/telepipe/
 - Built-in commands
 	- cd
 ]]--
@@ -103,6 +105,7 @@ local runner = lib.newclass(function(self)
 	self.outputqueue = ""
 	self.history = {}
 	self.textview = Gtk.TextView {
+		extra_css_classes = { "numeric" },
 		top_margin = 12,
 		bottom_margin = 12,
 		left_margin = 18,
@@ -129,8 +132,9 @@ local runner = lib.newclass(function(self)
 	end
 	self.chdirbutton = Gtk.Button {
 		icon_name = "folder-open-symbolic",
+		tooltip_text = "Select working directory",
 		on_clicked = function()
-			self:chdir()
+			self:trychdir()
 		end,
 	}
 	self.killbutton = Gtk.Button {
@@ -150,6 +154,7 @@ local runner = lib.newclass(function(self)
 		self:createpopup()
 	end)
 	self.sendbutton = Gtk.Button {
+		extra_css_classes = { "suggested-action" },
 		icon_name = "media-playback-start-symbolic",
 		tooltip_text = "Run command",
 		sensitive = false,
@@ -158,6 +163,7 @@ local runner = lib.newclass(function(self)
 		end,
 	}
 	self.entry = Gtk.Entry {
+		extra_css_classes = { "numeric" },
 		placeholder_text = "Run a command…",
 		hexpand = true,
 		on_changed = function()
@@ -240,7 +246,7 @@ function runner:createpopup()
 				table.remove(self.history, box.parent:get_index() + 1)
 				self.historybutton.popover:popdown()
 				self.historybutton.popover = nil
-				self:exec(command)
+				self:tryexec(command)
 			end,
 		})
 		lbox:append(Gtk.Button {
@@ -311,21 +317,31 @@ function runner:updatetitle()
 	self:settitle(self:gettitle())
 end
 
-function runner:chdir()
-	if self.subproc then return end
+function runner:trychdir()
 	local filedialog = Gtk.FileDialog {
 		initial_folder = Gio.File.new_for_path(self.pwd)
 	}
 	Gio.Async.start(function()
 		local dir = filedialog:async_select_folder(app.active_window)
 		if dir then
-			self.pwd = dir:get_path()
+			self:chdir(dir:get_path())
 			self:ensurenewlines()
-			local message = "working directory	⇒	%s\n"
+			-- guaranteed to be a dir, so this is safe
+			local message = "working directory ⇒	%s\n"
 			self:print(message:format(self:getpwdlabel()))
 		end
-		self:updatetitle()
 	end)() --Call wrapped async context.
+end
+
+function runner:chdir(path)
+	if self.subproc then return end
+	local dir = Gio.File.new_for_path(path)
+	if dir:query_file_type() ~= "DIRECTORY" then
+		self:print(("not a directory: %s\n"):format(path))
+	else
+		self.pwd = dir:get_path()
+	end
+	self:updatetitle()
 end
 
 function runner:putstring(text)
@@ -408,16 +424,32 @@ function runner:waitend(async)
 		self.sendbutton.tooltip_text = "Run command"
 		if #self.entry.text > 0 then self.sendbutton.sensitive = true end
 		self:updatetitle()
+		self.entry:grab_focus_without_selecting()
 	end)() -- Call wrapped async context.
 end
 
-function runner:exec(command)
+function runner:tryexec(command)
 	command = lib.strip(command)
-	if #command < 1 then return end
+	if #command == 0 then return end
+	table.insert(self.history, command)
+	local name = command:match "^[^%s]*"
+	if runner.builtin[name] then
+		self:ensurenewlines()
+		self:putstring("⇒	" .. command)
+		self:print "\n"
+		local param = command:match " (.*)"
+		runner.builtin[name](self, param)
+		self.historybutton.visible = #self.history > 0
+	else
+		self:exec(command)
+	end
+end
+
+function runner:exec(command)
+	self:ensurenewlines()
 	local prefix = command:sub(1, 1)
 	local dopipein = prefix == ">" or prefix == "|"
 	local dopipeout = prefix == "<" or prefix == "|"
-	self:ensurenewlines()
 	if dopipein then
 		self.entry.sensitive = false
 		self:putstring "pasting to "
@@ -427,7 +459,6 @@ function runner:exec(command)
 	end
 	self:putstring("⇒	" .. command)
 	self:print "\n"
-	table.insert(self.history, command)
 	self.commandname = command
 	if dopipein or dopipeout then
 		command = lib.strip(command:sub(2))
@@ -482,7 +513,7 @@ function runner:kill()
 end
 
 function runner:send(line)
-	if not self.subproc then return self:exec(line) end
+	if not self.subproc then return self:tryexec(line) end
 	local stdin = self.subproc:get_stdin_pipe()
 	if stdin:is_closed() or stdin:is_closing() then return end
 	stdin = Gio.DataOutputStream.new(stdin)
@@ -521,6 +552,33 @@ function runner:close()
 		stdin:async_close()
 	end)() -- Call wrapped async context.
 end
+
+-- Built-in runner functions. If a command matches any of these names, it'll instead call a built-in.
+runner.builtin = {}
+
+function runner.builtin:cd(dir)
+	if not dir or #dir == 0 then dir = os.getenv "HOME" end
+	local current = Gio.File.new_for_path(self.pwd)
+	local target = current:resolve_relative_path(dir)
+	if target then
+		dir = target:get_path()
+	end
+	self:chdir(dir)
+end
+
+function runner.builtin:help()
+	self:print [[
+Telepipe is a command-line shell. Run command-line applications as you would normally.
+Telepipe's built-in commands are
+• cd [directory]
+	Changes the current working directory to the given path.
+• help
+	Print this help text.
+This software is experimental; expected features may not exist or may be subject to change. Many command-line apps will behave unusually, though in some cases this may be remedied using certain parameters or flags. Programs requiring the terminal will not function at all, and may output odd-looking text—avoid these applications.
+Visit Telepipe's code repository at https://github.com/vtrlx/telepipe/ for more information or to submit an issue.
+]]
+end
+
 
 -- SECTION: Application menus
 
@@ -569,6 +627,7 @@ window = lib.newclass(function(self)
 
 	local newbutton = Gtk.Button {
 		icon_name = "tab-new-symbolic",
+		tooltip_text = "New tab",
 		on_clicked = function()
 			self:newtab()
 		end,
@@ -786,6 +845,10 @@ end
 function app:on_startup()
 	local win = window()
 	win:newtab()
+	local r = get_focused_runner()
+	r:print [[
+Welcome to Telepipe. Type "help" (without quotation marks) then press the Enter key for more information on using this program.
+]]
 end
 
 return app:run()
