@@ -100,8 +100,8 @@ end
 
 -- SECTION: Command runner class
 
-local runner = lib.newclass(function(self)
-	self.pwd = os.getenv "HOME"
+local runner = lib.newclass(function(self, pwd)
+	self.pwd = pwd or os.getenv "HOME"
 	self.outputqueue = ""
 	self.history = {}
 	self.textview = Gtk.TextView {
@@ -147,6 +147,7 @@ local runner = lib.newclass(function(self)
 		end,
 	}
 	self.historybutton = Gtk.MenuButton {
+		tooltip_text = "Command history",
 		visible = false,
 		direction = "UP",
 	}
@@ -162,23 +163,39 @@ local runner = lib.newclass(function(self)
 			self:doactivate()
 		end,
 	}
-	self.entry = Gtk.Entry {
+	self.entry = Gtk.Text {
 		extra_css_classes = { "numeric" },
 		placeholder_text = "Run a command…",
 		hexpand = true,
 		on_changed = function()
 			self.sendbutton.sensitive = #self.entry.text > 0
+			self.clearbutton.visible = #self.entry.text > 0
 		end,
 		on_activate = function()
 			self:doactivate()
 		end,
+	}
+	self.clearbutton = Gtk.Button {
+		icon_name = "edit-clear-symbolic",
+		css_name = "image",
+		visible = false,
+		on_clicked = function()
+			self.entry.text = ""
+			self:grab()
+		end,
+	}
+	local entrybox = Gtk.Box {
+		orientation = "HORIZONTAL",
+		css_name = "entry",
+		self.entry,
+		self.clearbutton,
 	}
 	local lbox = Gtk.Box {
 		orientation = "HORIZONTAL",
 		extra_css_classes = { "linked" },
 		self.chdirbutton,
 		self.killbutton,
-		self.entry,
+		entrybox,
 		self.historybutton,
 	}
 	local box = Gtk.Box {
@@ -569,6 +586,7 @@ end
 function runner.builtin:help()
 	self:print [[
 Telepipe is a command-line shell. Run command-line applications as you would normally.
+Add a > at the start of a command to paste your clipboard's contents into the command's input. Add a < at the start of a command to copy its output to the clipboard. Add a | at the start of a command to do both, pasting the clipboard as input and copying the output back to the clipboard.
 Telepipe's built-in commands are
 • cd [directory]
 	Changes the current working directory to the given path.
@@ -830,8 +848,16 @@ window = lib.newclass(function(self)
 end)
 
 function window:newtab()
-	local r = runner()
-	local page = self.tabview:add_page(r.toolbarview)
+	local pwd
+	local selected = self.tabview.selected_page
+	local position = 0
+	if selected then
+		local current = runners[selected.child]
+		pwd = current.pwd
+		position = 1 + self.tabview:get_page_position(selected)
+	end
+	local r = runner(pwd)
+	local page = self.tabview:insert(r.toolbarview, position)
 	self.tabview:set_selected_page(page)
 end
 
