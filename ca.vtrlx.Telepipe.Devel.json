@@ -29,16 +29,6 @@
 			"sha256": "57ccc32bbbd005cab75bcc52444052535af691789dba2b9016d5c50640d68b3d"
 		}]
 	}, {
-		"name": "lfs",
-		"no-autogen": true,
-		"make-args": ["LUA_VERSION=5.5"],
-		"make-install-args": ["LUA_VERSION=5.5", "PREFIX=/app"],
-		"sources": [{
-			"type": "git",
-			"url": "https://github.com/lunarmodules/luafilesystem",
-			"tag": "v1_9_0"
-		}]
-	}, {
 		"name": "LuaGObject",
 		"no-autogen": true,
 		"subdir": "LuaGObject",

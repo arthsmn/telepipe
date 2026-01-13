@@ -217,7 +217,8 @@ local runner = lib.newclass(function(self, pwd)
 end)
 
 function runner:doactivate()
-	if #self.entry.text == 0 then return end
+	-- Blank lines are allowed for running apps.
+	if not self.subproc and #self.entry.text == 0 then return end
 	local text = self.entry.text
 	self.entry.text = ""
 	self:send(text)
