@@ -1,8 +1,11 @@
 --[[
-signals
+- signals
 	- replace "Stop running command" button with a menu button that allows the user to send signals (which signals?)
-actions
+- actions
 	- middle click app icon from the dash to open a new window
+- app icon
+	- electric slabtop typewriter with ">_" written on the paper (will differentiate against other typewriter apps)
+- resources (icons)
 ]]--
 
 -- SECTION: Helper functions
@@ -54,7 +57,10 @@ local Gtk = LuaGObject.Gtk
 
 local app = Adw.Application {
 	application_id = lib.get_app_id(),
+	flags = { "HANDLES_COMMAND_LINE" },
 }
+
+app:add_main_option("new-window", string.byte "n", "IN_MAIN", "NONE", "Create a new window.")
 
 local accels = {
 	["win.focus-cmdbar"] = { "<Ctrl>K" },
@@ -921,13 +927,26 @@ function app:on_activate()
 	app.active_window:present()
 end
 
+-- Handles command-line options. Currently, only serves to open a new Telepipe window in an already-running instance, either from the command-line, by manually selecting the "New Window" action from the dash, or by middle-clicking the app icon in the dash.
+function app:on_command_line(cli)
+	local opts = cli:get_options_dict()
+	if cli:get_is_remote() and opts:contains "new-window" then
+		local win = window()
+		win:newtab()
+	end
+	-- Signal that command line options have been handled and that the app should continue starting up.
+	cli:set_exit_status(0)
+	cli:done()
+	return -1
+end
+
 function app:on_startup()
 	local win = window()
 	win:newtab()
 	local r = get_focused_runner()
 	r:print [[
-Welcome to Telepipe. Type "help" (without quotation marks) then press the Enter key for more information on using this program.
+Welcome to Telepipe. Type "help" in the command entry below (without quotation marks) then press the Enter key for more information on using this program.
 ]]
 end
 
-return app:run()
+return app:run { lib.get_cli_args() }
