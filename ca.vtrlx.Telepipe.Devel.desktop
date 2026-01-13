@@ -1,5 +1,5 @@
 [Desktop Entry]
-Categories=GNOME;GTK;Utility;Terminal;
+Categories=GNOME;GTK;Utility;
 Name=Telepipe (development version)
 Keywords=console;command line;cli;terminal;
 Comment=Easily combine pipes with the clipboard
