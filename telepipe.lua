@@ -446,16 +446,30 @@ function runner:waitend(async)
 	end)() -- Call wrapped async context.
 end
 
+function runner:inserthistory(command)
+	for i = 1, #self.history do
+		local index = 1 + #self.history - i
+		local c = self.history[index]
+		if c == command then
+			table.remove(self.history, index)
+		end
+	end
+	table.insert(self.history, command)
+end
+
 function runner:tryexec(command)
 	command = lib.strip(command)
 	if #command == 0 then return end
-	table.insert(self.history, command)
 	local name = command:match "^[^%s]*"
 	if runner.builtin[name] then
 		self:ensurenewlines()
 		self:putstring("⇒	" .. command)
 		self:print "\n"
 		local param = command:match " (.*)"
+		-- The "cd" command has special behaviour for history handling.
+		if name ~= "cd" then
+			self:inserthistory(command)
+		end
 		runner.builtin[name](self, param)
 		self.historybutton.visible = #self.history > 0
 	else
@@ -464,6 +478,7 @@ function runner:tryexec(command)
 end
 
 function runner:exec(command)
+	self:inserthistory(command)
 	self:ensurenewlines()
 	local prefix = command:sub(1, 1)
 	local dopipein = prefix == ">" or prefix == "|"
@@ -580,6 +595,7 @@ function runner.builtin:cd(dir)
 	local target = current:resolve_relative_path(dir)
 	if target then
 		dir = target:get_path()
+		self:inserthistory("cd " .. lib.fmtdir(target:get_path()))
 	end
 	self:chdir(dir)
 end
