@@ -1,6 +1,6 @@
 --[[
 signals
-	- replace "Stop running command" button with a menu button that allows the user to send signals
+	- replace "Stop running command" button with a menu button that allows the user to send signals (which signals?)
 actions
 	- middle click app icon from the dash to open a new window
 ]]--
@@ -57,12 +57,14 @@ local app = Adw.Application {
 }
 
 local accels = {
-	["win.close-stdin"] = { "<Ctrl>D" },
 	["win.focus-cmdbar"] = { "<Ctrl>K" },
 	["win.new-tab"] = { "<Ctrl>T" },
 	["win.close-tab"] = { "<Ctrl>W" },
 	["win.new-win"] = { "<Ctrl>N" },
+	["win.open-folder"] = { "<Ctrl>D" },
+	["win.signal-endinput"] = { "<Ctrl><Alt>D" },
 	["win.shortcuts"] = { "<Ctrl><Shift>question" },
+	["win.about"] = { "F1" },
 }
 for k, v in pairs(accels) do
 	app:set_accels_for_action(k, v)
@@ -259,7 +261,6 @@ function runner:createpopup()
 			tooltip_text = "Run command again",
 			valign = "CENTER",
 			on_clicked = function()
-				table.remove(self.history, box.parent:get_index() + 1)
 				self.historybutton.popover:popdown()
 				self.historybutton.popover = nil
 				self:tryexec(command)
@@ -358,6 +359,14 @@ function runner:chdir(path)
 		self.pwd = dir:get_path()
 	end
 	self:updatetitle()
+end
+
+function runner:showfolder()
+	local file = Gio.File.new_for_path(self.pwd)
+	local launcher = Gtk.FileLauncher.new(file)
+	Gio.Async.start(function()
+		launcher:async_launch()
+	end)() -- Call wrapped async context.
 end
 
 function runner:putstring(text)
@@ -622,28 +631,33 @@ Visit Telepipe's code repository at https://github.com/vtrlx/telepipe/ for more 
 ]]
 end
 
-
 -- SECTION: Application menus
 
 local appmenu = Gio.Menu()
 appmenu:append("New Window", "win.new-win")
+appmenu:append("Open Working Directory", "win.open-folder")
 appmenu:append("Keyboard Shortcuts", "win.shortcuts")
 appmenu:append("About " .. app_title, "win.about")
 
-local shortcutsdialog = Adw.ShortcutsDialog {
-	Adw.ShortcutsSection {
-		title = app_title,
-		Adw.ShortcutsItem.new_from_action("New tab", "win.new-tab"),
-		Adw.ShortcutsItem.new_from_action("New window", "win.new-win"),
-		Adw.ShortcutsItem.new_from_action("Show keyboard shortcuts", "win.shortcuts"),
-	},
-	Adw.ShortcutsSection {
-		title = "Runner",
-		Adw.ShortcutsItem.new_from_action("Signal end of input", "win.close-stdin"),
-		Adw.ShortcutsItem.new_from_action("Focus command entry", "win.focus-cmdbar"),
-		Adw.ShortcutsItem.new_from_action("Close tab", "win.close-tab"),
-	},
-}
+local function shortcuts(parent)
+	local cut = Adw.ShortcutsItem.new_from_action
+	local shortdlg = Adw.ShortcutsDialog {
+		Adw.ShortcutsSection {
+			title = "Window",
+			cut("New tab", "win.new-tab"),
+			cut("New window", "win.new-win"),
+			cut("Show keyboard shortcuts", "win.shortcuts"),
+		},
+		Adw.ShortcutsSection {
+			title = "Runner tab",
+			cut("Show working directory in Files", "win.open-folder"),
+			cut("Signal end of input", "win.signal-endinput"),
+			cut("Focus command entry", "win.focus-cmdbar"),
+			cut("Close tab", "win.close-tab"),
+		},
+	}
+	shortdlg:present(parent)
+end
 
 local function about(parent)
 	local aboutdlg = Adw.AboutDialog {
@@ -705,6 +719,7 @@ window = lib.newclass(function(self)
 		local title, subtitle = r:gettitle()
 		page.title = title or subtitle
 		self.windowtitle.subtitle = subtitle
+		self.showfolder.enabled = true
 	end
 	function self.tabview.on_page_detached(tabview, page)
 		local r = runners[page.child]
@@ -753,6 +768,7 @@ window = lib.newclass(function(self)
 				self.windowtitle.title = app_title
 				self.windowtitle.subtitle = ""
 				self.toolbarview.top_bar_style = "FLAT"
+				self.showfolder.enabled = false
 			end
 		end
 		return true
@@ -835,7 +851,7 @@ window = lib.newclass(function(self)
 		end
 	end
 
-	lib.addnewaction(self.win, "close-stdin", function()
+	lib.addnewaction(self.win, "signal-endinput", function()
 		local r = get_focused_runner()
 		if not r then return end
 		r:close()
@@ -846,6 +862,13 @@ window = lib.newclass(function(self)
 		if not r then return end
 		r:grab()
 	end)
+
+	self.showfolder = lib.addnewaction(self.win, "open-folder", function()
+		local r = get_focused_runner()
+		if not r then return end
+		r:showfolder()
+	end)
+	self.showfolder.enabled = false
 
 	lib.addnewaction(self.win, "new-tab", function()
 		self:newtab()
@@ -860,6 +883,10 @@ window = lib.newclass(function(self)
 		local page = self.tabview.selected_page
 		if not page then return end
 		self.tabview:close_page(page)
+	end)
+
+	lib.addnewaction(self.win, "shortcuts", function()
+		shortcuts(self.win)
 	end)
 
 	lib.addnewaction(self.win, "about", function()
