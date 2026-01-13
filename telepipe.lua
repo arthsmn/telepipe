@@ -1,5 +1,4 @@
 --[[
-- resources (icons)
 - flathub????
 - signals
 	- replace "Stop running command" button with a menu button that allows the user to send signals (which signals?)
@@ -54,6 +53,7 @@ local Gtk = LuaGObject.Gtk
 
 local app = Adw.Application {
 	application_id = lib.get_app_id(),
+	resource_base_path = "/ca/vtrlx/Telepipe", -- Needs to be hardcoded.
 	flags = { "HANDLES_COMMAND_LINE" },
 }
 
@@ -80,6 +80,17 @@ function lib.addnewaction(map, name, cb)
 	map:add_action(action)
 	return action
 end
+
+-- SECTION: GResources
+
+do -- Load and register GResource.
+	local resource, err = Gio.Resource.load "/app/data/telepipe.gresource"
+	if resource then
+		Gio.resources_register(resource)
+	else
+		print("Failed to load resource", err)
+	end
+end -- Load and register GResource.
 
 -- SECTION: Important variables
 
@@ -134,14 +145,14 @@ local runner = lib.newclass(function(self, pwd)
 		oldupper = upper
 	end
 	self.chdirbutton = Gtk.Button {
-		icon_name = "folder-open-symbolic",
+		icon_name = "tp-folder-symbolic",
 		tooltip_text = "Select working directory",
 		on_clicked = function()
 			self:trychdir()
 		end,
 	}
 	self.killbutton = Gtk.Button {
-		icon_name = "edit-delete-symbolic",
+		icon_name = "tp-delete-symbolic",
 		tooltip_text = "Stop running command",
 		extra_css_classes = { "destructive-action" },
 		visible = false,
@@ -159,7 +170,7 @@ local runner = lib.newclass(function(self, pwd)
 	end)
 	self.sendbutton = Gtk.Button {
 		extra_css_classes = { "suggested-action" },
-		icon_name = "media-playback-start-symbolic",
+		icon_name = "tp-run-symbolic",
 		tooltip_text = "Run command",
 		sensitive = false,
 		on_clicked = function()
@@ -179,7 +190,7 @@ local runner = lib.newclass(function(self, pwd)
 		end,
 	}
 	self.clearbutton = Gtk.Button {
-		icon_name = "edit-clear-symbolic",
+		icon_name = "tp-clear-symbolic",
 		css_name = "image",
 		visible = false,
 		on_clicked = function()
@@ -260,7 +271,7 @@ function runner:createpopup()
 			extra_css_classes = { "linked" },
 		}
 		lbox:append(Gtk.Button {
-			icon_name = "edit-redo-symbolic",
+			icon_name = "tp-rerun-symbolic",
 			tooltip_text = "Run command again",
 			valign = "CENTER",
 			on_clicked = function()
@@ -270,7 +281,7 @@ function runner:createpopup()
 			end,
 		})
 		lbox:append(Gtk.Button {
-			icon_name = "edit-copy-symbolic",
+			icon_name = "tp-copy-symbolic",
 			tooltip_text = "Copy command to clipboard",
 			valign = "CENTER",
 			on_clicked = function()
@@ -282,7 +293,7 @@ function runner:createpopup()
 			end,
 		})
 		lbox:append(Gtk.Button {
-			icon_name = "edit-delete-symbolic",
+			icon_name = "tp-delete-symbolic",
 			extra_css_classes = { "destructive-action" },
 			tooltip_text = "Remove from history",
 			valign = "CENTER",
@@ -448,7 +459,7 @@ function runner:waitend(async)
 		self.killbutton.visible = false
 		self.entry.sensitive = true
 		self.entry.placeholder_text = "Run a command…"
-		self.sendbutton.icon_name = "media-playback-start-symbolic"
+		self.sendbutton.icon_name = "tp-run-symbolic"
 		self.sendbutton.tooltip_text = "Run command"
 		if #self.entry.text > 0 then self.sendbutton.sensitive = true end
 		self:updatetitle()
@@ -528,7 +539,7 @@ function runner:exec(command)
 	self.chdirbutton.visible = false
 	self.historybutton.visible = false
 	self.killbutton.visible = true
-	self.sendbutton.icon_name = "send-to-symbolic"
+	self.sendbutton.icon_name = "tp-send-symbolic"
 	self.sendbutton.tooltip_text = "Send to running command"
 	if dopipein then self:paste() end
 	local function copycb(text)
@@ -686,7 +697,7 @@ window = lib.newclass(function(self)
 	self.windowtitle = Adw.WindowTitle.new(app_title, "")
 
 	local newbutton = Gtk.Button {
-		icon_name = "tab-new-symbolic",
+		icon_name = "tp-newtab-symbolic",
 		tooltip_text = "New tab",
 		on_clicked = function()
 			self:newtab()
@@ -697,7 +708,7 @@ window = lib.newclass(function(self)
 	menupopover.halign = "END"
 	local menubutton = Gtk.MenuButton {
 		direction = "DOWN",
-		icon_name = "open-menu-symbolic",
+		icon_name = "tp-menu-symbolic",
 		popover = menupopover,
 	}
 

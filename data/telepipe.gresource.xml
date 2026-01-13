@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+	<gresource prefix="/ca/vtrlx/Telepipe">
+		<file preprocess="xml-stripblanks">icons/scalable/actions/tp-clear-symbolic.svg</file>
+		<file preprocess="xml-stripblanks">icons/scalable/actions/tp-copy-symbolic.svg</file>
+		<file preprocess="xml-stripblanks">icons/scalable/actions/tp-delete-symbolic.svg</file>
+		<file preprocess="xml-stripblanks">icons/scalable/actions/tp-folder-symbolic.svg</file>
+		<file preprocess="xml-stripblanks">icons/scalable/actions/tp-menu-symbolic.svg</file>
+		<file preprocess="xml-stripblanks">icons/scalable/actions/tp-newtab-symbolic.svg</file>
+		<file preprocess="xml-stripblanks">icons/scalable/actions/tp-rerun-symbolic.svg</file>
+		<file preprocess="xml-stripblanks">icons/scalable/actions/tp-run-symbolic.svg</file>
+		<file preprocess="xml-stripblanks">icons/scalable/actions/tp-send-symbolic.svg</file>
+	</gresource>
+</gresources>
