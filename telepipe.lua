@@ -1,11 +1,8 @@
 --[[
+- resources (icons)
+- flathub????
 - signals
 	- replace "Stop running command" button with a menu button that allows the user to send signals (which signals?)
-- actions
-	- middle click app icon from the dash to open a new window
-- app icon
-	- electric slabtop typewriter with ">_" written on the paper (will differentiate against other typewriter apps)
-- resources (icons)
 ]]--
 
 -- SECTION: Helper functions

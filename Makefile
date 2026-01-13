@@ -43,5 +43,5 @@ install: $(BIN) #$(RES)
 	install -D -m 0755 -t $(PREFIX)/bin $<
 #	install -D -m 0644 -t $(PREFIX)/data $(RES)
 	install -D -m 0644 -t $(PREFIX)/share/applications $(DESKTOP_FILE)
-#	install -D -m 0644 -t $(PREFIX)/share/icons/hicolor/128x128/apps icons/$(ICON)
-#	install -D -m 0644 -t $(PREFIX)/share/icons/hicolor/symbolic/apps icons/$(SYMBOLIC)
+	install -D -m 0644 -t $(PREFIX)/share/icons/hicolor/128x128/apps icons/$(ICON)
+	install -D -m 0644 -t $(PREFIX)/share/icons/hicolor/symbolic/apps icons/$(SYMBOLIC)
