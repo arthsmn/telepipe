@@ -1,10 +1,8 @@
 --[[
-- 🍔
-	- Maybe find a way to link the README and online manual
-- webpage
-	https://www.vtrlx.ca/apps/telepipe/
-- Built-in commands
-	- cd
+signals
+	- replace "Stop running command" button with a menu button that allows the user to send signals
+actions
+	- middle click app icon from the dash to open a new window
 ]]--
 
 -- SECTION: Helper functions
@@ -600,6 +598,14 @@ function runner.builtin:cd(dir)
 	self:chdir(dir)
 end
 
+function runner.builtin:exit()
+	-- No need to save history or anything, and this is guaranteed to be successful.
+	self.tabview:close_page(self.tabpage)
+	if self.tabview.n_pages == 0 then
+		app.active_window:close()
+	end
+end
+
 function runner.builtin:help()
 	self:print [[
 Telepipe is a command-line shell. Run command-line applications as you would normally.
@@ -607,6 +613,8 @@ Add a > at the start of a command to paste your clipboard's contents into the co
 Telepipe's built-in commands are
 • cd [directory]
 	Changes the current working directory to the given path.
+• exit
+	Closes the current tab. If no tabs remain, closes the current window.
 • help
 	Print this help text.
 This software is experimental; expected features may not exist or may be subject to change. Many command-line apps will behave unusually, though in some cases this may be remedied using certain parameters or flags. Programs requiring the terminal will not function at all, and may output odd-looking text—avoid these applications.
@@ -680,6 +688,7 @@ window = lib.newclass(function(self)
 	function self.tabview.on_page_attached(tabview, page)
 		local r = runners[page.child]
 		if not r then return end
+		r.tabview = self.tabview
 		self.toolbarview.top_bar_style = "RAISED_BORDER"
 		function r.settitle(r, title, subtitle, icon)
 			page.title = title or subtitle
@@ -874,8 +883,8 @@ function window:newtab()
 		position = 1 + self.tabview:get_page_position(selected)
 	end
 	local r = runner(pwd)
-	local page = self.tabview:insert(r.toolbarview, position)
-	self.tabview:set_selected_page(page)
+	r.tabpage = self.tabview:insert(r.toolbarview, position)
+	self.tabview:set_selected_page(r.tabpage)
 end
 
 -- SECTION: App startup
