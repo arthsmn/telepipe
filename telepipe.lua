@@ -239,7 +239,7 @@ function runner:doactivate()
 end
 
 function runner:createpopup()
-	local maxwidth = app.active_window.width * 0.75
+	local maxwidth = math.min(app.active_window.width * 0.75, 600)
 	local histbox = Gtk.ListBox {
 		selection_mode = "NONE",
 		valign = "END",
