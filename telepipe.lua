@@ -65,6 +65,7 @@ local accels = {
 	["win.close-tab"] = { "<Ctrl>W" },
 	["win.new-win"] = { "<Ctrl>N" },
 	["win.open-folder"] = { "<Ctrl>D" },
+	["win.search"] = { "<Ctrl>F" },
 	["win.signal-endinput"] = { "<Ctrl><Alt>D" },
 	["win.shortcuts"] = { "<Ctrl><Shift>question" },
 	["win.about"] = { "F1" },
@@ -112,12 +113,28 @@ local function get_focused_runner()
 	return runners[page.child]
 end
 
+-- SECTION: Custom styling
+
+do
+	local styleman = Adw.StyleManager.get_default()
+	local display = Gdk.Display.get_default()
+	local provider = Gtk.CssProvider()
+	provider:load_from_string [[
+		/* Even without actions, images will become more opque on hover. This prevents that from happening. */
+		image.nohover:hover {
+			opacity: 0.7;
+		}
+	]]
+	Gtk.StyleContext.add_provider_for_display(display, provider, 1000000)
+end
+
 -- SECTION: Command runner class
 
 local runner = lib.newclass(function(self, pwd)
 	self.pwd = pwd or os.getenv "HOME"
 	self.outputqueue = ""
 	self.history = {}
+	self.matches = {}
 	self.textview = Gtk.TextView {
 		extra_css_classes = { "numeric" },
 		top_margin = 12,
@@ -130,6 +147,11 @@ local runner = lib.newclass(function(self, pwd)
 		wrap_mode = Gtk.WrapMode.WORD_CHAR,
 	}
 	self.buffer = self.textview.buffer
+	function self.buffer.on_changed()
+		if self.searchbar.search_mode_enabled then
+			self:findall(self.searchentry.text)
+		end
+	end
 	self.scrolledwin = Gtk.ScrolledWindow {
 		child = self.textview,
 		hscrollbar_policy = "NEVER",
@@ -144,6 +166,88 @@ local runner = lib.newclass(function(self, pwd)
 		end
 		oldupper = upper
 	end
+
+	-- Search stuff. Lots of stuff going on here.
+	self.searchentry = Gtk.Text {
+		placeholder_text = "Search in output…",
+		hexpand = true,
+		on_activate = function()
+			self:searchnext(self.searchentry.text)
+		end,
+	}
+	function self.searchentry.on_notify.text()
+		if not self.searchbar.search_mode_enabled then return end
+		if #self.searchentry.text == 0 then
+			self.matchlabel.label = ""
+			self.searchclearbutton.visible = false
+			return
+		end
+		self:findall(self.searchentry.text)
+		self.searchclearbutton.visible = true
+	end
+	self.searchclearbutton = Gtk.Button {
+		css_name = "image",
+		icon_name = "tp-clear-symbolic",
+		margin_start = 12,
+		visible = false,
+		on_clicked = function()
+			self.searchentry.text = ""
+			self.searchentry:grab_focus()
+		end,
+	}
+	self.matchlabel = Gtk.Label {
+		css_classes = { "numeric" },
+		halign = "END",
+		hexpand = false,
+		margin_start = 6,
+		margin_end = 6,
+	}
+	function self.matchlabel.on_notify.text()
+		self.matchlabel.visible = #self.matchlabel.text > 0
+	end
+	local searchentrybox = Gtk.Box {
+		orientation = "HORIZONTAL",
+		css_name = "entry",
+		Gtk.Image {
+			css_classes = { "nohover" },
+			icon_name = "tp-search-symbolic",
+		},
+		self.searchentry,
+		self.searchclearbutton,
+		self.matchlabel,
+	}
+	local prevmatchbutton = Gtk.Button {
+		icon_name = "tp-up-symbolic",
+		tooltip_text = "Go to previous match",
+		on_clicked = function()
+			self:searchprev(self.searchentry.text)
+		end,
+	}
+	local nextmatchbutton = Gtk.Button {
+		icon_name = "tp-down-symbolic",
+		tooltip_text = "Go to next match",
+		on_clicked = function()
+			self:searchnext(self.searchentry.text)
+		end,
+	}
+	local searchbox = Gtk.Box {
+		orientation = "HORIZONTAL",
+		css_classes = { "linked" },
+		searchentrybox,
+		prevmatchbutton,
+		nextmatchbutton,
+	}
+	local searchclamp = Adw.Clamp {
+		orientation = "HORIZONTAL",
+		child = searchbox,
+		maximum_size = 600,
+	}
+	self.searchbar = Gtk.SearchBar {
+		child = searchclamp,
+		search_mode_enabled = false,
+		show_close_button = true,
+	}
+	self.searchbar:connect_entry(self.searchentry)
 	self.chdirbutton = Gtk.Button {
 		icon_name = "tp-folder-symbolic",
 		tooltip_text = "Select working directory",
@@ -192,6 +296,7 @@ local runner = lib.newclass(function(self, pwd)
 	self.clearbutton = Gtk.Button {
 		icon_name = "tp-clear-symbolic",
 		css_name = "image",
+		can_focus = false,
 		visible = false,
 		on_clicked = function()
 			self.entry.text = ""
@@ -226,6 +331,7 @@ local runner = lib.newclass(function(self, pwd)
 		content = self.scrolledwin,
 		bottom_bar_style = "RAISED_BORDER",
 	}
+	self.toolbarview:add_bottom_bar(self.searchbar)
 	self.toolbarview:add_bottom_bar(box)
 	runners[self.toolbarview] = self
 end)
@@ -239,7 +345,7 @@ function runner:doactivate()
 end
 
 function runner:createpopup()
-	local maxwidth = math.min(app.active_window.width * 0.75, 600)
+	local maxwidth = math.floor(app.active_window.width * 0.75)
 	local histbox = Gtk.ListBox {
 		selection_mode = "NONE",
 		valign = "END",
@@ -384,8 +490,23 @@ function runner:showfolder()
 end
 
 function runner:putstring(text)
-	local textiter = self.buffer:get_end_iter()
-	self.buffer:insert(textiter, text, -1)
+	local bound, insert
+	local first, second = self:gettextiters()
+	-- If the buffer has a selection that extends to the end of the buffer, it needs to be preserved, so mark it.
+	if self.buffer:get_has_selection() and second:is_end() then
+		bound = self.buffer:create_mark(nil, first, true)
+		insert = self.buffer:create_mark(nil, second, true)
+	end
+	local enditer = self.buffer:get_end_iter()
+	self.buffer:insert(enditer, text, -1)
+	-- If marks were made to preserve selection, then reselect now and delete those marks.
+	if bound and insert then
+		first = self.buffer:get_iter_at_mark(bound)
+		second = self.buffer:get_iter_at_mark(insert)
+		self:selecttext(first, second)
+		self.buffer:delete_mark(bound)
+		self.buffer:delete_mark(insert)
+	end
 end
 
 function runner:flush()
@@ -607,6 +728,153 @@ function runner:close()
 	end)() -- Call wrapped async context.
 end
 
+function runner:getbound()
+	return self.buffer:get_selection_bound()
+end
+
+function runner:getinsert()
+	return self.buffer:get_insert()
+end
+
+function runner:gettextiters()
+	local first = self.buffer:get_iter_at_mark(self:getbound())
+	local second = self.buffer:get_iter_at_mark(self:getinsert())
+	first:order(second)
+	return first, second
+end
+
+function runner:selecttext(first, second)
+	assert(first, second)
+	first:order(second)
+	-- Gtk.TextBuffer expects the bound, followed by the insert.
+	self.buffer:select_range(second, first)
+end
+
+function runner:scrollselection()
+	local buf, tv = self.buffer, self.textview
+	self.textview:scroll_to_mark(self:getbound(), 0.4999, false, 0.0, 0.0)
+	self.textview:scroll_to_mark(self:getinsert(), 0.2, false, 0.0, 0.0)
+end
+
+function runner:selectrange(bound, insert)
+	assert(type(bound) == "number")
+	assert(type(insert) == "number")
+	local first = self.buffer:get_start_iter()
+	first:forward_chars(bound - 1)
+	local second = self.buffer:get_start_iter()
+	second:forward_chars(insert - 1)
+	self:selecttext(first, second)
+end
+
+-- Search functions.
+
+function runner:beginsearch()
+	if self.searchbar.search_mode_enabled then
+		self.searchentry:grab_focus_without_selecting()
+		return
+	end
+	-- Replace the search entry if the current selection doesn't match
+	if self.buffer:get_has_selection() then
+		self.searchentry.text = self.buffer:get_slice(self:gettextiters())
+	else
+		self.searchentry.text = ""
+	end
+	self.searchbar.search_mode_enabled = true
+	if #self.searchentry.text > 0 then
+		self:findall(self.searchentry.text)
+	else
+		self.matchlabel.label = ""
+	end
+	self.searchentry:grab_focus_without_selecting()
+end
+
+function runner:setmatches(total, current)
+	if type(current) == "number" and type(total) == "number" then
+		self.matchlabel.label = ("%d of %d"):format(current, total)
+	elseif total == 0 then
+		self.matchlabel.label = "no matches"
+	elseif type(total) == "number" then
+		self.matchlabel.label = ("%d"):format(total)
+	elseif type(total) == "string" then
+		self.matchlabel.label = total
+	else
+		self.matchlabel.label = ""
+	end
+end
+
+function runner:findall(pattern)
+	if #pattern == 0 then return end
+	local byteindices = {}
+	local text = self.buffer.text
+	local len = #text
+	local init = 1
+	while init <= len do
+		local i, j = text:find(pattern, init, true)
+		if not i or not j then break end
+		table.insert(byteindices, { i, j })
+		init = j + 1
+	end
+	-- clear the table without reassigning
+	while #self.matches > 0 do table.remove(self.matches) end
+	local utftotal = 0
+	init = 1
+	for _, t in ipairs(byteindices) do
+		local i = t[1]
+		local j = t[2]
+		local ulen1 = utf8.len(text, init, i, true)
+		local ulen2 = utf8.len(text, i, j, true)
+		assert(ulen1 and ulen2)
+		ulen1 = utftotal + ulen1
+		utftotal = ulen1
+		ulen2 = utftotal + ulen2
+		utftotal = ulen2 - 1
+		table.insert(self.matches, { ulen1, ulen2 })
+		init = j + 1
+	end
+	self:setmatches(#self.matches)
+end
+
+function runner:searchprev(...)
+	self:findall(...)
+	if #self.matches == 0 then return end
+	local first, _ = self:gettextiters()
+	local cursorpos = first:get_offset() + 1
+	for i = 1, #self.matches do
+		local idx = #self.matches - i + 1
+		local m = self.matches[idx]
+		if cursorpos >= m[2] then
+			self:selectrange(m[1], m[2])
+			self:scrollselection()
+			self:setmatches(#self.matches, idx)
+			return
+		end
+	end
+	-- Wrap to end.
+	local m = self.matches[#self.matches]
+	self:selectrange(m[1], m[2])
+	self:scrollselection()
+	self:setmatches(#self.matches, #self.matches)
+end
+
+function runner:searchnext(...)
+	self:findall(...)
+	if #self.matches == 0 then return end
+	local _, first = self:gettextiters()
+	local cursorpos = first:get_offset()
+	for i, m in ipairs(self.matches) do
+		if m[1] > cursorpos then
+			self:selectrange(m[1], m[2])
+			self:scrollselection()
+			self:setmatches(#self.matches, i)
+			return
+		end
+	end
+	-- Wrap to start.
+	self:selectrange(self.matches[1][1], self.matches[1][2])
+	self:scrollselection()
+	self:setmatches(#self.matches, 1)
+end
+
 -- Built-in runner functions. If a command matches any of these names, it'll instead call a built-in.
 runner.builtin = {}
 
@@ -649,6 +917,7 @@ end
 
 local appmenu = Gio.Menu()
 appmenu:append("New Window", "win.new-win")
+appmenu:append("Search Command Output", "win.search")
 appmenu:append("Open Working Directory", "win.open-folder")
 appmenu:append("Keyboard Shortcuts", "win.shortcuts")
 appmenu:append("About " .. app_title, "win.about")
@@ -664,6 +933,7 @@ local function shortcuts(parent)
 		},
 		Adw.ShortcutsSection {
 			title = "Runner tab",
+			cut("Search command output", "win.search"),
 			cut("Show working directory in Files", "win.open-folder"),
 			cut("Signal end of input", "win.signal-endinput"),
 			cut("Focus command entry", "win.focus-cmdbar"),
@@ -733,6 +1003,7 @@ window = lib.newclass(function(self)
 		local title, subtitle = r:gettitle()
 		page.title = title or subtitle
 		self.windowtitle.subtitle = subtitle
+		self.search.enabled = true
 		self.showfolder.enabled = true
 	end
 	function self.tabview.on_page_detached(tabview, page)
@@ -782,6 +1053,7 @@ window = lib.newclass(function(self)
 				self.windowtitle.title = app_title
 				self.windowtitle.subtitle = ""
 				self.toolbarview.top_bar_style = "FLAT"
+				self.search.enabled = false
 				self.showfolder.enabled = false
 			end
 		end
@@ -876,6 +1148,13 @@ window = lib.newclass(function(self)
 		if not r then return end
 		r:grab()
 	end)
+
+	self.search = lib.addnewaction(self.win, "search", function()
+		local r = get_focused_runner()
+		if not r then return end
+		r:beginsearch()
+	end)
+	self.search.enabled = false
 
 	self.showfolder = lib.addnewaction(self.win, "open-folder", function()
 		local r = get_focused_runner()
