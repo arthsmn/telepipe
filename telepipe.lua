@@ -532,9 +532,12 @@ function runner:print(... items)
 	end)
 end
 
-function runner:ensurenewlines()
+function runner:ensurenewlines(n)
 	self:flush()
-	while #self.buffer.text > 0 and self.buffer.text:sub(-2, -1) ~= "\n\n" do
+	if not n then n = 2 end
+	local pattern = ""
+	for i = 1, n do pattern = pattern .. "\n" end
+	while #self.buffer.text > 0 and self.buffer.text:sub(-n, -1) ~= pattern do
 		self:putstring "\n"
 	end
 	self.outputqueue = self.outputqueue:match "[^\n].*" or ""
@@ -558,8 +561,10 @@ function runner:copy()
 	elseif #self.copyqueue > 0 then
 		local clipboard = Gdk.Display.get_default():get_clipboard()
 		clipboard:set(GObject.Value(GObject.Type.STRING, self.copyqueue))
+		self:ensurenewlines(1)
 		self:print "copied output to clipboard.\n"
 	else
+		self:ensurenewlines(1)
 		self:print "nothing to copy; clipboard has not been modified."
 	end
 	self.copyqueue = nil
@@ -571,6 +576,7 @@ function runner:waitend(async)
 		self.subproc:async_wait()
 		local status = self.subproc:get_status()
 		if status ~= 0 then
+			self:ensurenewlines(1)
 			self:print(("exited with status code %d\n"):format(status))
 		end
 		self.commandname = nil
@@ -900,7 +906,9 @@ end
 function runner.builtin:help()
 	self:print [[
 Telepipe is a command-line shell. Run command-line applications as you would normally.
+
 Add a > at the start of a command to paste your clipboard's contents into the command's input. Add a < at the start of a command to copy its output to the clipboard. Add a | at the start of a command to do both, pasting the clipboard as input and copying the output back to the clipboard.
+
 Telepipe's built-in commands are
 • cd [directory]
 	Changes the current working directory to the given path.
@@ -908,7 +916,9 @@ Telepipe's built-in commands are
 	Closes the current tab. If no tabs remain, closes the current window.
 • help
 	Print this help text.
-This software is experimental; expected features may not exist or may be subject to change. Many command-line apps will behave unusually, though in some cases this may be remedied using certain parameters or flags. Programs requiring the terminal will not function at all, and may output odd-looking text—avoid these applications.
+
+THIS SOFTWARE IS EXPERIMENTAL. Expected features may not exist or may be subject to change. Many command-line programs will behave unusually, though in some cases this may be remedied using certain parameters or flags. Programs requiring the terminal will not function at all, and may output odd-looking text—avoid using these applications in Telepipe.
+
 Visit Telepipe's code repository at https://github.com/vtrlx/telepipe/ for more information or to submit an issue.
 ]]
 end

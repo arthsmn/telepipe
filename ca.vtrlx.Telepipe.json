@@ -13,10 +13,13 @@
 		"--filesystem=host-os",
 		"--filesystem=host-etc",
 		"--filesystem=home",
+		"--filesystem=xdg-run/gvfs",
+		"--filesystem=xdg-run/gvfsd",
 		"--persist=host",
 		"--persist=host-os",
 		"--persist=host-etc",
 		"--persist=home",
+		"--talk-name=org.gtk.vfs.*",
 		"--talk-name=org.freedesktop.Flatpak"
 	],
 	"modules": [{
