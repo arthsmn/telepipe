@@ -1,8 +1,11 @@
---[[
-- flathub????
-- signals
-	- replace "Stop running command" button with a menu button that allows the user to send signals (which signals?)
-]]--
+--[[ telepipe.lua (graphical command-line shell)
+Copyright © 2026 Victoria Lacroix
+
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>. ]]--
 
 -- SECTION: Helper functions
 
@@ -66,6 +69,7 @@ local accels = {
 	["win.new-win"] = { "<Ctrl>N" },
 	["win.open-folder"] = { "<Ctrl>D" },
 	["win.search"] = { "<Ctrl>F" },
+	["win.signal-kill"] = { "<Ctrl><Alt>C" },
 	["win.signal-endinput"] = { "<Ctrl><Alt>D" },
 	["win.shortcuts"] = { "<Ctrl><Shift>question" },
 	["win.about"] = { "F1" },
@@ -945,6 +949,7 @@ local function shortcuts(parent)
 			title = "Runner tab",
 			cut("Search command output", "win.search"),
 			cut("Show working directory in Files", "win.open-folder"),
+			cut("Stop current command", "win.signal-kill"),
 			cut("Signal end of input", "win.signal-endinput"),
 			cut("Focus command entry", "win.focus-cmdbar"),
 			cut("Close tab", "win.close-tab"),
@@ -1146,6 +1151,12 @@ window = lib.newclass(function(self)
 			return false
 		end
 	end
+
+	lib.addnewaction(self.win, "signal-kill", function()
+		local r = get_focused_runner()
+		if not r then return end
+		r:kill()
+	end)
 
 	lib.addnewaction(self.win, "signal-endinput", function()
 		local r = get_focused_runner()
