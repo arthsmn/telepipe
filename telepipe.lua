@@ -200,7 +200,7 @@ local runner = lib.newclass(function(self, pwd)
 		end,
 	}
 	self.matchlabel = Gtk.Label {
-		css_classes = { "numeric" },
+		extra_css_classes = { "numeric" },
 		halign = "END",
 		hexpand = false,
 		margin_start = 6,
@@ -213,7 +213,7 @@ local runner = lib.newclass(function(self, pwd)
 		orientation = "HORIZONTAL",
 		css_name = "entry",
 		Gtk.Image {
-			css_classes = { "nohover" },
+			extra_css_classes = { "nohover" },
 			icon_name = "tp-search-symbolic",
 		},
 		self.searchentry,
@@ -236,7 +236,7 @@ local runner = lib.newclass(function(self, pwd)
 	}
 	local searchbox = Gtk.Box {
 		orientation = "HORIZONTAL",
-		css_classes = { "linked" },
+		extra_css_classes = { "linked" },
 		searchentrybox,
 		prevmatchbutton,
 		nextmatchbutton,
@@ -366,6 +366,7 @@ function runner:createpopup()
 			margin_end = 6,
 			Gtk.Label {
 				label = command,
+				extra_css_classes = { "numeric" },
 				halign = "START",
 				hexpand = true,
 				margin_start = 6,

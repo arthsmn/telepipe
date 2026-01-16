@@ -4,7 +4,9 @@ Most Linux command-line software and workflows assume that a terminal console is
 
 # Contents
 
-- [General Advice](#general-advice)
+General Advice:
+1. [Not a Terminal](#not-a-terminal)
+2. [Switching to Telepipe](#switching-to-telepipe)
 
 Specific programs:
 1. [ls](#ls)
@@ -15,21 +17,33 @@ Specific programs:
 
 Because there have been decades of work put into making command-line programs work with specific kinds of console terminals while comparatively little time has been put into developing tools to run command-lines outside of the terminal, it can be difficult for longtime terminal users to get accustomed to Telepipe.
 
-The single most important piece of advice is therefore to remember that **Telepipe is not a terminal**. It does not implement PTYs. It does not handle ioctls. It does not format text. It does not display text in monospace fonts. Telepipe is closer to being a command-line shell which is presented through a graphical interface instead of a terminal. This also means that keyboard shortcuts that seasoned terminal users would expect are absent—can't use Ctrl+C to quit programs as that is reserved for copying to the clipboard.
+**This list is not comprehensive!** If you use Telepipe and find interesting workarounds for your problems, consider submitting a change to this document.
 
-Under the hood, Telepipe executes each command using a new non-interactive instance of the user's configured shell. This means that environment variables and the like must be customized as they would for a conventional terminl-based shell: by editing profile files. Variables will not persist between commands, and shell builtin commands will fail silently without doing anything. Running `which <command>` will tell you if a command is an actual program or a builtin for your shell.
+## Not a Terminal
 
-Because Telepipe uses non-interactive shells to run commands, shell aliases are generally not available. A simple alternative is to write simple shell scripts for custom commands which are executed frequently. This is especially true if making heavy use of [clipboard redirection](Clipboard Redirection.md) to edit text.
+The single most important piece of advice is therefore to remember that **Telepipe is not a terminal**. It does not implement PTYs. It does not handle ioctls. It does not colorize or decorate text. It does not use monospace fonts. Telepipe is closer to being a command-line shell that is presented through a graphical interface instead of a terminal. This also means that keyboard shortcuts that seasoned terminal users would expect are absent—can't use Ctrl+C to quit programs as that is reserved for copying to the clipboard, and you can't use Ctrl+D to close the standard input as that is reserved for opening the current directory in the file manager. Other shortcuts are provided for these functions instead.
+
+Under the hood, Telepipe executes each command using a new non-interactive instance of the user's configured shell. This means that environment variables and the like must be customized as they would for a conventional terminal-based shell: by editing profile files. Shell builtin commands will fail silently without doing anything. Running `which <command>` will tell you if a command is an actual program or a builtin for your shell.
+
+Because Telepipe uses non-interactive shells to run commands, shell aliases are likely unavailable. A simple alternative is to write simple shell scripts for custom commands which are executed frequently. This is especially useful if making heavy use of [clipboard redirection](https://github.com/vtrlx/telepipe/blob/trunk/docs/Clipboard%20Redirection.md) to edit text.
+
+## Command-Line Programs in Telepipe
+
+By default, many command-line programs will work flawlessly in Telepipe. This is because most well-behaved command-line applications will detect that they are not running inside a terminal, and will adjust their outputs accordingly.
+
+Some commands will work in Telepipe, but in ways which are unintuitive. In these cases, workarounds are likely present. For instance, shells will default to running in non-interactive mode, but can be made interactive by passing a flag—usually `-i`. Shells forced to be interactive may emit error messages when started, but should otherwise work as expected.
+
+Certain commands which depend explicitly on terminal support (like `vim`) fail to exit when executed in a non-terminal environment. These programs need to be stopped manually from Telepipe.
 
 # Specific Programs
 
-The following sections are comprised of advice for dealing with crucial programs which behave oddly or suboptimally in Telepipe.
+The following sections consist of advice for dealing with crucial programs which behave oddly or suboptimally in Telepipe.
 
 ## ls
 
-By default, running GNU `ls` in Telepipe works flawlessly—but it leaves something to be desired. As Telepipe lacks completions, filling in filenames can be somewhat cumbersome. The intended solution to this is to use programs like `ls` to list the filenames before dragging-and-dropping ones you want to work with into the command entry. This only works for the current directory, as `ls` does not include relative paths when listing other directories. This can be easily remedied by using the `-d` flag, but it will only list the given path instead of the directory's children as would be expected from other invocations of `ls`.
+GNU `ls` in works flawlessly in Telepipe, but it leaves something to be desired. As Telepipe lacks completions, filling in filenames can be somewhat cumbersome. The intended solution to this is to use programs like `ls` to list the filenames before dragging-and-dropping ones you want to work with back into the command entry. This only works for the current directory, as `ls` does not include relative paths when listing other directories. This can be easily remedied by using the `-d` flag, but it will only list the given path instead of the directory's children as would be expected from other invocations of `ls`. One would normally need to call `ls -d <directory>/*` to list files from other directories with full relative paths, which can be frustrating to remember.
 
-The following shell script amends this by using a wildcard to `ls -d` if the listed file is a directory, otherwise it calls `ls` as normal. It will also cause `ls` to output all file names by wrapping them in quotation marks. A good name to give this script is `dir`.
+The following shell script resolves this by using a wildcard to `ls -d` if the given file is a directory, otherwise it calls `ls` as normal. It will also cause `ls` to output all file names by wrapping them in quotation marks. A good name to give this script is `dir`.
 
 ```sh
 #!/usr/bin/env sh
@@ -50,13 +64,13 @@ fi
 
 ## ssh
 
-Secure Shell (`ssh`) is the gold standard for accessing other systems through a terminal. Unfortunately, its most common use case (running an interactive remote command-line shell) behaves oddly when not run in a terminal.
+Secure Shell (SSH) is the gold standard for accessing other systems through a terminal. Unfortunately, its most common use case (running an interactive remote command-line shell) behaves oddly when not run in a terminal.
 
-The recommended way to work with resources on a remote machine is to mount that machine's filesystem locally. To mount filesystems in a way that works with Telepipe, it's necessary to use a method that is compatible with GVFS. Users of GNOME can do this easily using the Files app (a.k.a. Nautilus) by accessing the "Network" resource in that app's sidebar. Once a network resource is available, navigate to it in Telepipe using the folder button to the left of the command entry.
+The recommended way to work with resources on a remote machine is to mount that machine's filesystem locally. To mount filesystems in a way that works with Telepipe, it's necessary to use a method that is compatible with GVFS. Users of GNOME can do this easily using the Files app (a.k.a. Nautilus) by accessing the "Network" resource in that app's sidebar. Once a network resource is available, navigate to it in Telepipe using the folder button to the left of the command entry. If not using GNOME and Nautilus is not available, one can alternatively use GLib's `gio mount` command instead (e.g: `gio mount sftp://<user>@<server>` or `gio mount sftp://<server>`).
 
-An advantage to this approach of working with remote resources is that locally-installed apps—including scripts written for use within Telepipe—will still be available without needing to synchronize settings between systems.
+An advantage to this approach of working with remote resources is that locally-installed apps—including scripts written for use within Telepipe—will still be usable on remote files without needing to install and configure them on the remote machine.
 
-If it's necessary to use software only available on a remote system, it is still possible to invoke `ssh` to run single commands in the form of `ssh user@host <command> [parameters…]`. Interactive remote commands which don't require a terminal should continue working as normal in Telepipe when executed through `ssh`.
+If it's necessary to use software only available on a remote system, it is still possible to invoke SSH to run single commands in the form of `ssh user@host <command> [parameters…]`. Interactive remote commands which don't require a terminal should continue working as normal in Telepipe when executed directly from SSH.
 
 ## sudo
 
