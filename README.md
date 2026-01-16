@@ -10,7 +10,7 @@ Telepipe is a graphical command-line shell for GNOME. It allows you to run comma
 
 Despite appearances, it is **not a terminal**. This means that TUI apps will not work in Telepipe, but most text-mode programs should work without issue. This also means that you should consider Telepipe itself to be your shell, instead of an interface to your shell.
 
-Telepipe's name is a portmanteau of *teletypewriter* (or *teletype*), a device which in this context allows the user to run a command-line shell from a physical typewriter, and *pipe*, a common command-line feature on UNIX and UNIX-like systems which allows the output of one command to be used as the input of another commnand. Pipelines are an especially powerful way to leverage command-line applications for advanced text editing and formatting, and Telepipe [provides advanced features](https://github.com/vtrlx/telepipe/blob/trunk/docs/Clipboard%20Redirection.md) for using shell pipelines with the clipboard.
+Telepipe's name is a portmanteau of *teletypewriter* (or *teletype*), a device which in this context allows the user to run a command-line shell from a physical typewriter, and *pipe*, a common command-line feature on UNIX and UNIX-like systems which allows the output of one command to be used as the input of another commnand. Pipelines are an especially powerful way to leverage command-line applications for advanced text editing and formatting, and Telepipe provides advanced features for using shell pipelines which [interact with the clipboard](https://github.com/vtrlx/telepipe/blob/trunk/docs/Clipboard%20Redirection.md).
 
 ## Installing
 
@@ -42,7 +42,7 @@ Some commands will work in Telepipe, but in ways which are unintuitive. In these
 
 Certain commands which depend explicitly on terminal support (like `vim`) fail to exit when executed in a non-terminal environment. These programs need to be stopped manually.
 
-The Ctrl+C keyboard accelerator is bound to the copy action. To stop a running program, press the stop button located to the left of the command entry. No control codes are implemented except for "end-of-input"—relied upon by many interactive command-line applications—which is sent by pressing Ctrl+D as expected. Other signals may be implemented at a later date if necessary.
+Advice on how to be use specific commands is detailed in the [Tips and Tricks document](https://github.com/vtrlx/telepipe/blob/trunk/docs/Tips%20and%20Tricks.md).
 
 ## Features
 
