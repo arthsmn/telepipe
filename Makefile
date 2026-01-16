@@ -22,6 +22,9 @@ CFLAGS += $(LIBS) -Wl,-E -DVERSION=$(VERSION)
 DESKTOP_FILE = $(APPID).desktop
 ICON = $(APPID).svg
 SYMBOLIC = $(APPID)-symbolic.svg
+ifndef DEVEL
+METAINFO = $(PACKAGE).metainfo.xml
+endif
 
 all: $(BIN)
 
@@ -45,3 +48,4 @@ install: $(BIN) $(RES)
 	install -D -m 0644 -t $(PREFIX)/share/applications $(DESKTOP_FILE)
 	install -D -m 0644 -t $(PREFIX)/share/icons/hicolor/128x128/apps icons/$(ICON)
 	install -D -m 0644 -t $(PREFIX)/share/icons/hicolor/symbolic/apps icons/$(SYMBOLIC)
+	if [ -n "$(METAINFO)" ]; then install -D -m 0644 -t $(PREFIX)/share/metainfo $(METAINFO); fi

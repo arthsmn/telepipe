@@ -1103,7 +1103,7 @@ window = lib.newclass(function(self)
 		content = self.toolbarview,
 		default_width = 640,
 		default_height = 480,
-		width_request = 480,
+		width_request = 360,
 		height_request = 360,
 	}
 	function self.win.on_close_request()

@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+	<id>ca.vtrlx.Telepipe</id>
+
+	<name>Telepipe</name>
+	<summary>Run command-line apps smoothly.</summary>
+	<url type="bugtracker">https://github.com/vtrlx/telepipe/issues</url>
+	<url type="contact">https://www.vtrlx.ca/about</url>
+	<url type="homepage">https://www.vtrlx.ca/apps/telepipe/</url>
+	<url type="donation">https://liberapay.com/vtrlx/</url>
+
+	<content_rating type="oars-1.1" />
+
+<!--
+	<releases>
+		<release version="0.1" date="TBD">
+			<description>
+				<p>Initial release.</p>
+			</description>
+		</release>
+	</releases>
+-->
+
+	<branding>
+		<color type="primary" scheme_preference="light">#ffbe6f</color>
+		<color type="primary" scheme_preference="dark">#a51d2d</color>
+	</branding>
+
+	<categories>
+		<category>Utility</category>
+	</categories>
+
+	<keywords>
+		<keyword>GNOME</keyword>
+		<keyword>Gtk</keyword>
+		<keyword>Adwaita</keyword>
+		<keyword>console</keyword>
+		<keyword>terminal</keyword>
+		<keyword>command-line</keyword>
+		<keyword>command</keyword>
+		<keyword>shell</keyword>
+		<keyword>bash</keyword>
+		<keyword>telepipe</keyword>
+	</keywords>
+
+	<developer id="ca.vtrlx">
+		<name>Victoria Lacroix</name>
+	</developer>
+
+	<metadata_license>FSFAP</metadata_license>
+	<project_license>GPL-3.0-or-later</project_license>
+
+	<recommends>
+		<display_length compare="ge">600</display_length>
+	</recommends>
+	<requires>
+		<display_length compare="ge">360</display_length>
+	</requires>
+	<supports>
+		<control>pointing</control>
+		<control>keyboard</control>
+		<control>touch</control>
+	</supports>
+
+	<description>
+		<p>
+			Run command-line programs with full access to modern text editing features.
+		</p>
+	</description>
+
+	<launchable type="desktop-id">ca.vtrlx.Telepipe.desktop</launchable>
+	<screenshots>
+		<screenshot type="default">
+			<image>https://www.vtrlx.ca/images/telepipe-1.png</image>
+		</screenshot>
+		<screenshot>
+			<image>https://www.vtrlx.ca/images/telepipe-2.png</image>
+		</screenshot>
+		<screenshot>
+			<image>https://www.vtrlx.ca/images/telepipe-3.png</image>
+		</screenshot>
+	</screenshots>
+</component>
