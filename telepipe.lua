@@ -19,6 +19,10 @@ function lib.fmtdir(path)
 	return path:gsub("^" .. os.getenv "HOME", "~", 1)
 end
 
+function lib.expanddir(path)
+	return path:gsub("^~", os.getenv "HOME", 1)
+end
+
 function lib.strip(text)
 	return text:gsub("^%s*", ""):gsub("%s*$", "")
 end
@@ -891,6 +895,7 @@ runner.builtin = {}
 
 function runner.builtin:cd(dir)
 	if not dir or #dir == 0 then dir = os.getenv "HOME" end
+	dir = lib.expanddir(dir)
 	local current = Gio.File.new_for_path(self.pwd)
 	local target = current:resolve_relative_path(dir)
 	if target then
