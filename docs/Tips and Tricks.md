@@ -76,7 +76,7 @@ If it's necessary to use software only available on a remote system, it is still
 
 Normally, `sudo` requires a terminal to enter a password, making it unusable from Telepipe.
 
-The recommended solution is to run `pkexec` from the [Polkit](https://github.com/polkit-org/polkit) package. This prompts the password using a GUI popup. Simply call `pkexec` instead of `sudo` when attempting to run a command with elevated privileges. Note that `pkexec` will not cache credentials.
+The recommended solution is to run `pkexec` from the [Polkit](https://github.com/polkit-org/polkit) package. This prompts the password using a GUI popup. Simply call `pkexec` instead of `sudo` when attempting to run a command with elevated privileges. `pkexec` differs from `sudo` in a few way; First, it will not stay in the current directory unless the `--keep-cwd` flag is passed to `pkexec` and second is that `pkexec` does not cache credentials, meaning that authentication is required on each invocation.
 
 If Polkit is not an option, another solution is to use `ssh-askpass`. Set the variable `SUDO_ASKPASS=/path/to/askpass` before calling `sudo`, and it should prompt for the password (you may also need to pass the `-A` flag). To make this change permanent, set the `askpass` option in `/etc/sudo.conf`,
 
