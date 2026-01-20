@@ -9,9 +9,10 @@ General Advice:
 2. [Switching to Telepipe](#switching-to-telepipe)
 
 Specific programs:
-1. [ls](#ls)
-2. [ssh](#ssh)
-3. [sudo](#sudo)
+1. [clear](#clear)
+2. [ls](#ls)
+3. [ssh](#ssh)
+4. [sudo](#sudo)
 
 # General Advice
 
@@ -21,11 +22,13 @@ Because there have been decades of work put into making command-line programs wo
 
 ## Not a Terminal
 
-The single most important piece of advice is therefore to remember that **Telepipe is not a terminal**. It does not implement PTYs. It does not handle ioctls. It does not colorize or decorate text. It does not use monospace fonts. Telepipe is closer to being a command-line shell that is presented through a graphical interface instead of a terminal. This also means that keyboard shortcuts that seasoned terminal users would expect are absent—can't use Ctrl+C to quit programs as that is reserved for copying to the clipboard, and you can't use Ctrl+D to close the standard input as that is reserved for opening the current directory in the file manager. Other shortcuts are provided for these functions instead.
+The single most important piece of advice is therefore to remember that **Telepipe is not a terminal**. It does not implement PTYs. It does not handle ioctls. It does not colorize or decorate text. It does not use monospace fonts. Telepipe is closer to being a command-line shell that is presented through a graphical interface instead of a terminal. This also means that keyboard shortcuts that seasoned terminal users would expect are absent—Ctrl+C will copy selected text instead of aborting the running program, and Ctrl+D will open the file manager in the current working directory instead of sending an end-of-transmission signal. Other shortcuts are provided for these functions instead.
 
 Under the hood, Telepipe executes each command using a new non-interactive instance of the user's configured shell. This means that environment variables and the like must be customized as they would for a conventional terminal-based shell: by editing profile files. Shell builtin commands will fail silently without doing anything. Running `which <command>` will tell you if a command is an actual program or a builtin for your shell.
 
-Because Telepipe uses non-interactive shells to run commands, shell aliases are likely unavailable. A simple alternative is to write simple shell scripts for custom commands which are executed frequently. This is especially useful if making heavy use of [clipboard redirection](https://github.com/vtrlx/telepipe/blob/trunk/docs/Clipboard%20Redirection.md) to edit text.
+Because Telepipe uses non-interactive shells to run commands, shell aliases are likely to be unavailable. A simple alternative is to write simple shell scripts for custom commands which are executed frequently. This is especially useful if making heavy use of [clipboard redirection](https://github.com/vtrlx/telepipe/blob/trunk/docs/Clipboard%20Redirection.md) to edit text.
+
+Do not expect Telepipe to replace the terminal—expect to need to dip back into a terminal emulator for work which specifically requires it.
 
 ## Command-Line Programs in Telepipe
 
@@ -38,6 +41,14 @@ Certain commands which depend explicitly on terminal support (like `vim`) fail t
 # Specific Programs
 
 The following sections consist of advice for dealing with crucial programs which behave oddly or suboptimally in Telepipe.
+
+## clear
+
+The program `clear` does not work in Telepipe, and Telepipe intentionally provides no alternative.
+
+The suggested method of completely clearing the command output view is to focus it, select all text (either by secondary-clicking and choosing "Select All", typing Ctrl+A, or using the select all button on a touchscreen cursor), then deleting the selection.
+
+Telepipe omits a `clear` builtin in an effort to break users' preexisting habits of compulsively clearing terminal output. If the goal is to remove irrelevant command output from a session, Telepipe allows one to do exactly that without deleting everything else. One must simply select the region to delete as one normally would in a text editor, then delete it. This allows important text such as file names emitted by previous commands to be preserved without needing to constantly redo those commands to generate the same outputs.
 
 ## ls
 
@@ -76,7 +87,7 @@ If it's necessary to use software only available on a remote system, it is still
 
 Normally, `sudo` requires a terminal to enter a password, making it unusable from Telepipe.
 
-The recommended solution is to run `pkexec` from the [Polkit](https://github.com/polkit-org/polkit) package. This prompts the password using a GUI popup. Simply call `pkexec` instead of `sudo` when attempting to run a command with elevated privileges. `pkexec` differs from `sudo` in a few way; First, it will not stay in the current directory unless the `--keep-cwd` flag is passed to `pkexec` and second is that `pkexec` does not cache credentials, meaning that authentication is required on each invocation.
+The recommended solution is to run `pkexec` from the [Polkit](https://github.com/polkit-org/polkit) package. This prompts the password using a GUI popup. Simply call `pkexec` instead of `sudo` when attempting to run a command with elevated privileges. `pkexec` differs from `sudo` in a few way; First, it will not stay in the current directory unless the `--keep-cwd` flag is passed to `pkexec` and second is that `pkexec` does not cache credentials, meaning that authentication is required on each invocation. Consider using an alternate method of authentication such as a fingerprint reader or a PKI token.
 
 If Polkit is not an option, another solution is to use `ssh-askpass`. Set the variable `SUDO_ASKPASS=/path/to/askpass` before calling `sudo`, and it should prompt for the password (you may also need to pass the `-A` flag). To make this change permanent, set the `askpass` option in `/etc/sudo.conf`,
 
