@@ -338,9 +338,8 @@ local runner = lib.newclass(function(self, pwd)
 	self.toolbarview = Adw.ToolbarView {
 		content = self.scrolledwin,
 		bottom_bar_style = "RAISED_BORDER",
+		bottom_bars = { self.searchbar, box },
 	}
-	self.toolbarview:add_bottom_bar(self.searchbar)
-	self.toolbarview:add_bottom_bar(box)
 	runners[self.toolbarview] = self
 end)
 
