@@ -301,9 +301,13 @@ local runner = lib.newclass(function(self, pwd)
 			},
 		}
 	}
-	function self.historybutton.popover.child.child:on_map()
+	function self.historybutton.popover.child.child.on_map()
+		-- This isn't ideal, but there are no good options here.
+		self.histview.width_request = math.max(300,
+			math.floor(self.entry.width * 0.75))
+		scrolled = self.historybutton.popover.child.child
 		GLib.timeout_add(20, GLib.PRIORITY_DEFAULT, function()
-			self.vadjustment.value = self.vadjustment.upper
+			scrolled.vadjustment.value = scrolled.vadjustment.upper
 		end)
 	end
 	self.sendbutton = Gtk.Button {
@@ -378,6 +382,7 @@ function runner:doactivate()
 end
 
 function runner:grab()
+	self.entry:set_position(-1)
 	self.entry:grab_focus_without_selecting()
 end
 
@@ -555,10 +560,7 @@ function runner:inserthistory(command)
 end
 
 function runner:setupitem(listitem)
-	local items = {}
-	self.listitems[listitem] = items
-
-	items.label = Gtk.Label {
+	local label = Gtk.Label {
 		extra_css_classes = { "numeric" },
 		halign = "START",
 		hexpand = true,
@@ -570,30 +572,19 @@ function runner:setupitem(listitem)
 	}
 
 	-- It is normally a better idea to bind signal handlers in the ::bind signal, after an item is bound. However, LuaGObject kind of makes it a bit of a nightmare to unbind signals. Someone should fix that.
-	items.send = Gtk.Button {
-		icon_name = "tp-rerun-symbolic",
-		tooltip_text = "Run command again",
+	local transferbutton = Gtk.Button {
+		icon_name = "tp-transfer-symbolic",
+		tooltip_text = "Copy command to command entry",
 		valign = "CENTER",
 		on_clicked = function()
 			local command = listitem.item.string
 			self.historybutton.popover:popdown()
 			self.historybutton.active = false
-			self:tryexec(command)
+			self.entry.text = command
+			self:grab()
 		end,
 	}
-	items.copy = Gtk.Button {
-		icon_name = "tp-copy-symbolic",
-		tooltip_text = "Copy command to clipboard",
-		valign = "CENTER",
-		on_clicked = function()
-			local command = listitem.item.string
-			self.historybutton.popover:popdown()
-			self.historybutton.active = false
-			local clipboard = Gdk.Display.get_default():get_clipboard()
-			clipboard:set(GObject.Value(GObject.Type.STRING, command))
-		end,
-	}
-	items.delete = Gtk.Button {
+	local deletebutton = Gtk.Button {
 		icon_name = "tp-delete-symbolic",
 		extra_css_classes = { "destructive-action" },
 		tooltip_text = "Remove from history",
@@ -612,34 +603,29 @@ function runner:setupitem(listitem)
 		margin_bottom = 6,
 		margin_start = 6,
 		margin_end = 6,
-		items.label,
+		label,
 		Gtk.Box {
 			orientation = "HORIZONTAL",
 			halign = "END",
 			extra_css_classes = { "linked" },
-			items.send,
-			items.copy,
-			items.delete,
+			transferbutton,
+			deletebutton,
 		},
 	}
 end
 
 function runner:binditem(listitem)
-	local items = self.listitems[listitem]
-
-	items.label.label = listitem.item.string
+	-- Because the label is the box's first child, it's easy to find.
+	listitem.child.children[1].label = listitem.item.string
 end
 
 function runner:unbinditem(listitem)
-	local items = self.listitems[listitem]
-
-	items.label.label = ""
+	-- Same as in :binditem().
+	listitem.child.children[1].label = ""
 end
 
 function runner:teardownitem(listitem)
-	self.listitems[listitem] = nil
-
-	-- Everything else gets GC'd.
+	-- Everything just gets GC'd at this point, so no need to do anything.
 end
 
 function runner:tryexec(command)
