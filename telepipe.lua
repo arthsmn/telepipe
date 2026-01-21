@@ -141,7 +141,22 @@ end
 local runner = lib.newclass(function(self, pwd)
 	self.pwd = pwd or os.getenv "HOME"
 	self.outputqueue = ""
-	self.history = {}
+	local factory = Gtk.SignalListItemFactory {
+		on_setup = function(_, ...) self:setupitem(...) end,
+		on_bind = function(_, ...) self:binditem(...) end,
+		on_unbind = function(_, ...) self:unbinditem(...) end,
+		on_teardown = function(_, ...) self:teardownitem(...) end,
+	}
+	self.history = Gtk.StringList()
+	self.listitems = {}
+	self.histview = Gtk.ListView {
+		valign = "END",
+		width_request = 300,
+		factory = factory,
+		model = Gtk.NoSelection {
+			model = self.history,
+		},
+	}
 	self.matches = {}
 	self.textview = Gtk.TextView {
 		extra_css_classes = { "numeric" },
@@ -276,10 +291,21 @@ local runner = lib.newclass(function(self, pwd)
 		tooltip_text = "Command history",
 		visible = false,
 		direction = "UP",
+		popover = Gtk.Popover {
+			halign = "END",
+			child = Gtk.ScrolledWindow {
+				child = self.histview,
+				max_content_height = 300,
+				propagate_natural_height = true,
+				hscrollbar_policy = "NEVER",
+			},
+		}
 	}
-	self.historybutton:set_create_popup_func(function()
-		self:createpopup()
-	end)
+	function self.historybutton.popover.child.child:on_map()
+		GLib.timeout_add(20, GLib.PRIORITY_DEFAULT, function()
+			self.vadjustment.value = self.vadjustment.upper
+		end)
+	end
 	self.sendbutton = Gtk.Button {
 		extra_css_classes = { "suggested-action" },
 		icon_name = "tp-run-symbolic",
@@ -349,100 +375,6 @@ function runner:doactivate()
 	local text = self.entry.text
 	self.entry.text = ""
 	self:send(text)
-end
-
-function runner:createpopup()
-	local maxwidth = math.floor(app.active_window.width * 0.75)
-	local histbox = Gtk.ListBox {
-		selection_mode = "NONE",
-		valign = "END",
-		width_request = maxwidth,
-	}
-	for i, command in ipairs(self.history) do
-		local box = Gtk.Box {
-			orientation = "HORIZONTAL",
-			halign = "FILL",
-			spacing = 6,
-			margin_top = 6,
-			margin_bottom = 6,
-			margin_start = 6,
-			margin_end = 6,
-			Gtk.Label {
-				label = command,
-				extra_css_classes = { "numeric" },
-				halign = "START",
-				hexpand = true,
-				margin_start = 6,
-				margin_end = 24,
-				selectable = true,
-				wrap = true,
-				wrap_mode = "WORD_CHAR",
-			},
-		}
-		local lbox = Gtk.Box {
-			orientation = "HORIZONTAL",
-			halign = "END",
-			extra_css_classes = { "linked" },
-		}
-		lbox:append(Gtk.Button {
-			icon_name = "tp-rerun-symbolic",
-			tooltip_text = "Run command again",
-			valign = "CENTER",
-			on_clicked = function()
-				self.historybutton.popover:popdown()
-				self.historybutton.popover = nil
-				self:tryexec(command)
-			end,
-		})
-		lbox:append(Gtk.Button {
-			icon_name = "tp-copy-symbolic",
-			tooltip_text = "Copy command to clipboard",
-			valign = "CENTER",
-			on_clicked = function()
-				local clipboard = Gdk.Display.get_default():get_clipboard()
-				clipboard:set(GObject.Value(
-					GObject.Type.STRING, command))
-				self.historybutton.popover:popdown()
-				self.historybutton.popover = nil
-			end,
-		})
-		lbox:append(Gtk.Button {
-			icon_name = "tp-delete-symbolic",
-			extra_css_classes = { "destructive-action" },
-			tooltip_text = "Remove from history",
-			valign = "CENTER",
-			on_clicked = function()
-				table.remove(self.history, box.parent:get_index() + 1)
-				histbox:remove(box.parent)
-				if #self.history == 0 then
-					self.historybutton.visible = false
-					self.historybutton.popover:popdown()
-					self.historybutton.popover = nil
-				end
-			end,
-		})
-		box:append(lbox)
-		histbox:append(box)
-	end
-	local scrolled = Gtk.ScrolledWindow {
-		child = histbox,
-		max_content_height = 300,
-		propagate_natural_height = true,
-		hscrollbar_policy = "NEVER",
-		on_map = function(self)
-			GLib.timeout_add(20, GLib.PRIORITY_DEFAULT, function()
-				self.vadjustment.value = self.vadjustment.upper
-			end)
-		end,
-	}
-	self.historybutton.popover = Gtk.Popover {
-		halign = "END",
-		child = scrolled,
-		on_closed = function()
-			self.historybutton.popover = nil
-			self.historybutton.active = false
-		end,
-	}
 end
 
 function runner:grab()
@@ -590,7 +522,7 @@ function runner:waitend(async)
 		self.commandname = nil
 		self.subproc = nil
 		self.chdirbutton.visible = true
-		self.historybutton.visible = #self.history > 0
+		self.historybutton.visible = self.history.n_items > 0
 		self.killbutton.visible = false
 		self.entry.sensitive = true
 		self.entry.placeholder_text = "Run a command…"
@@ -602,15 +534,112 @@ function runner:waitend(async)
 	end)() -- Call wrapped async context.
 end
 
-function runner:inserthistory(command)
-	for i = 1, #self.history do
-		local index = 1 + #self.history - i
-		local c = self.history[index]
-		if c == command then
-			table.remove(self.history, index)
-		end
+function runner:removehistory(command)
+	repeat
+		local index = self.history:find(command)
+		if index >= self.history.n_items or index < 0 then break end
+		self.history:remove(index)
+	until false
+	if self.history.n_items == 0 then
+		self.historybutton.visible = false
+		self.historybutton.popover:popdown()
 	end
-	table.insert(self.history, command)
+end
+
+function runner:inserthistory(command)
+	self:removehistory(command)
+	self.history:append(command)
+	if self.history.n_items > 0 then
+		self.historybutton.visible = true
+	end
+end
+
+function runner:setupitem(listitem)
+	local items = {}
+	self.listitems[listitem] = items
+
+	items.label = Gtk.Label {
+		extra_css_classes = { "numeric" },
+		halign = "START",
+		hexpand = true,
+		margin_start = 6,
+		margin_end = 24,
+		selectable = true,
+		wrap = true,
+		wrap_mode = "WORD_CHAR",
+	}
+
+	-- It is normally a better idea to bind signal handlers in the ::bind signal, after an item is bound. However, LuaGObject kind of makes it a bit of a nightmare to unbind signals. Someone should fix that.
+	items.send = Gtk.Button {
+		icon_name = "tp-rerun-symbolic",
+		tooltip_text = "Run command again",
+		valign = "CENTER",
+		on_clicked = function()
+			local command = listitem.item.string
+			self.historybutton.popover:popdown()
+			self.historybutton.active = false
+			self:tryexec(command)
+		end,
+	}
+	items.copy = Gtk.Button {
+		icon_name = "tp-copy-symbolic",
+		tooltip_text = "Copy command to clipboard",
+		valign = "CENTER",
+		on_clicked = function()
+			local command = listitem.item.string
+			self.historybutton.popover:popdown()
+			self.historybutton.active = false
+			local clipboard = Gdk.Display.get_default():get_clipboard()
+			clipboard:set(GObject.Value(GObject.Type.STRING, command))
+		end,
+	}
+	items.delete = Gtk.Button {
+		icon_name = "tp-delete-symbolic",
+		extra_css_classes = { "destructive-action" },
+		tooltip_text = "Remove from history",
+		valign = "CENTER",
+		on_clicked = function()
+			local command = listitem.item.string
+			self:removehistory(command)
+		end,
+	}
+
+	listitem.child = Gtk.Box {
+		orientation = "HORIZONTAL",
+		halign = "FILL",
+		spacing = 6,
+		margin_top = 6,
+		margin_bottom = 6,
+		margin_start = 6,
+		margin_end = 6,
+		items.label,
+		Gtk.Box {
+			orientation = "HORIZONTAL",
+			halign = "END",
+			extra_css_classes = { "linked" },
+			items.send,
+			items.copy,
+			items.delete,
+		},
+	}
+end
+
+function runner:binditem(listitem)
+	local items = self.listitems[listitem]
+
+	items.label.label = listitem.item.string
+end
+
+function runner:unbinditem(listitem)
+	local items = self.listitems[listitem]
+
+	items.label.label = ""
+end
+
+function runner:teardownitem(listitem)
+	self.listitems[listitem] = nil
+
+	-- Everything else gets GC'd.
 end
 
 function runner:tryexec(command)
@@ -627,7 +656,7 @@ function runner:tryexec(command)
 			self:inserthistory(command)
 		end
 		runner.builtin[name](self, param)
-		self.historybutton.visible = #self.history > 0
+		self.historybutton.visible = self.history.n_items > 0
 	else
 		self:exec(command)
 	end
