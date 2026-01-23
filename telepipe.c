@@ -7,24 +7,19 @@ This program is distributed in the hope that it will be useful, but WITHOUT ANY 
 
 You should have received a copy of the GNU General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 
-#include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-
+#include <libintl.h>
+#include <locale.h>
 #include <lua.h>
+
 #include <lauxlib.h>
 #include <lualib.h>
 
-#ifdef DEVEL
-#define APP_ID "ca.vtrlx.Telepipe.Devel"
-#else
-#define APP_ID "ca.vtrlx.Telepipe"
-#endif
-
+/* The first macro quotes the argument name as a string. The second allows the passing of a macro value to be quoted instead. */
 #define QUOTE(name) #name
 #define MSTR(macro) QUOTE(macro)
+/* Environment variables passed from the Makefile, whose values are made into C strings. */
+#define APP_ID MSTR(PACKAGE)
+#define APP_VER MSTR(VERSION)
 
 static int
 get_is_devel_lua(lua_State *L)
@@ -60,13 +55,30 @@ static char **argv;
 
 static int
 get_cli_args_lua(lua_State *L)
-/* Returns each argument given to the command line. */
+/* Returns each argument given to the command line. Used for the --new-window flag. */
 {
 	int i;
-	for (i = 0; i < argc; ++i) {
+	for (i = 0; i < argc; ++i)
 		lua_pushstring(L, argv[i]);
-	}
 	return argc;
+}
+
+static int
+gettext_lua(lua_State *L)
+/* Returns a localized string using gettext(). */
+{
+	const char *msgid;
+	char *msg;
+
+	msgid = luaL_checkstring(L, 1);
+	if (!msgid) {
+		luaL_pushfail(L);
+		return 1;
+	}
+
+	msg = gettext(msgid);
+	lua_pushstring(L, msg);
+	return 1;
 }
 
 static const luaL_Reg telepipelib[] = {
@@ -74,6 +86,7 @@ static const luaL_Reg telepipelib[] = {
 	{ "get_app_id", get_app_id_lua },
 	{ "get_app_ver", get_app_ver_lua },
 	{ "get_cli_args", get_cli_args_lua },
+	{ "gettext", gettext_lua },
 	/* sentinel item, marks the end of the array */
 	{ NULL, NULL },
 };
@@ -88,6 +101,11 @@ main(int _argc, char **_argv)
 	lua_State *L;
 	const char *message;
 	int lua_result;
+
+	setlocale(LC_ALL, "");
+	/* Tells gettext where to look for messages files. Dest should be /app/share/locale/<lang>/LC_MESSAGES/<domain>.mo */
+	bindtextdomain("messages", "/app/share/locale");
+	textdomain("messages");
 
 	argc = _argc;
 	argv = _argv;

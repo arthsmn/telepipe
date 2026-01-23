@@ -1,0 +1,218 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-01-23 10:47-0500\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: telepipe.lua:17
+msgid "Telepipe"
+msgstr ""
+
+#: telepipe.lua:144
+msgid "Stop Running Command"
+msgstr ""
+
+#: telepipe.lua:145 telepipe.lua:997
+msgid "Close Command Input"
+msgstr ""
+
+#: telepipe.lua:201
+msgid "Find in output…"
+msgstr ""
+
+#: telepipe.lua:250
+msgid "Go to previous match"
+msgstr ""
+
+#: telepipe.lua:257
+msgid "Go to next match"
+msgstr ""
+
+#: telepipe.lua:282
+msgid "Select working directory…"
+msgstr ""
+
+#: telepipe.lua:292
+msgid "Signal to running command…"
+msgstr ""
+
+#: telepipe.lua:323 telepipe.lua:548
+msgid "Run command"
+msgstr ""
+
+#: telepipe.lua:331 telepipe.lua:546
+msgid "Run a command…"
+msgstr ""
+
+#: telepipe.lua:419
+#, lua-format
+msgid "working directory ⇒\t%s\n"
+msgstr ""
+
+#: telepipe.lua:523
+msgid "copied output to clipboard.\n"
+msgstr ""
+
+#: telepipe.lua:526
+msgid "nothing to copy; clipboard has not been modified."
+msgstr ""
+
+#: telepipe.lua:538
+#, lua-format
+msgid "exited with status code %d\n"
+msgstr ""
+
+#: telepipe.lua:590
+msgid "Copy command to command entry"
+msgstr ""
+
+#: telepipe.lua:603
+msgid "Remove from history"
+msgstr ""
+
+#: telepipe.lua:685
+msgid "Send to running command…"
+msgstr ""
+
+#: telepipe.lua:686 telepipe.lua:717
+msgid "Send to running command"
+msgstr ""
+
+#: telepipe.lua:846
+#, lua-format
+msgid "%d of %d"
+msgstr ""
+
+#: telepipe.lua:848
+msgid "no matches"
+msgstr ""
+
+#: telepipe.lua:955
+msgid ""
+"Telepipe is a command-line shell. Run command-line applications as you would "
+"normally.\n"
+"\n"
+"Add a > at the start of a command to paste your clipboard's contents into "
+"the command's input. Add a < at the start of a command to copy its output to "
+"the clipboard. Add a | at the start of a command to do both, pasting the "
+"clipboard as input and copying the output back to the clipboard.\n"
+"\n"
+"Telepipe's built-in commands are\n"
+"• cd [directory]\n"
+"\tChanges the current working directory to the given path.\n"
+"• exit\n"
+"\tCloses the current tab. If no tabs remain, closes the current window.\n"
+"• help\n"
+"\tPrint this help text.\n"
+"\n"
+"THIS SOFTWARE IS EXPERIMENTAL. Expected features may not exist or may be "
+"subject to change. Many command-line programs will behave unusually, though "
+"in some cases this may be remedied using certain parameters or flags. "
+"Programs requiring the terminal will not function at all, and may output odd-"
+"looking text—avoid using these applications in Telepipe.\n"
+"\n"
+"Visit Telepipe's code repository at https://github.com/vtrlx/telepipe/ for "
+"more information or to submit an issue.\n"
+msgstr ""
+
+#: telepipe.lua:977 telepipe.lua:989
+msgid "New Window"
+msgstr ""
+
+#: telepipe.lua:978 telepipe.lua:994
+msgid "Search Command Output"
+msgstr ""
+
+#: telepipe.lua:979
+msgid "Open Working Directory"
+msgstr ""
+
+#: telepipe.lua:980
+msgid "Keyboard Shortcuts"
+msgstr ""
+
+#: telepipe.lua:981
+msgid "About "
+msgstr ""
+
+#: telepipe.lua:988 telepipe.lua:1030
+msgid "New Tab"
+msgstr ""
+
+#: telepipe.lua:990
+msgid "Show Keyboard Shortcuts"
+msgstr ""
+
+#: telepipe.lua:995
+msgid "Show Working Directory in Files"
+msgstr ""
+
+#: telepipe.lua:996
+msgid "Stop Current Command"
+msgstr ""
+
+#: telepipe.lua:998
+msgid "Focus Command Entry"
+msgstr ""
+
+#: telepipe.lua:999
+msgid "Close Current Tab"
+msgstr ""
+
+#: telepipe.lua:1017
+msgid "Contact the Developer"
+msgstr ""
+
+#: telepipe.lua:1089
+#, lua-format
+msgid ""
+"This tab cannot be closed because the command %q is running. Close anyway?"
+msgstr ""
+
+#: telepipe.lua:1095
+msgid "Stop Current Command?"
+msgstr ""
+
+#: telepipe.lua:1096
+msgid "Keep Running"
+msgstr ""
+
+#: telepipe.lua:1098
+msgid "Stop and Close Tab"
+msgstr ""
+
+#: telepipe.lua:1178
+msgid "Stop Running Commands?"
+msgstr ""
+
+#: telepipe.lua:1178
+msgid "There are commands running in this window. Close anway?"
+msgstr ""
+
+#: telepipe.lua:1179
+msgid "Keep Open"
+msgstr ""
+
+#: telepipe.lua:1181
+msgid "Stop All and Close"
+msgstr ""
+
+#: telepipe.lua:1299
+msgid ""
+"Welcome to Telepipe. Type \"help\" in the command entry below (without "
+"quotation marks) then press the Enter key for more information on using this "
+"program.\n"
+msgstr ""

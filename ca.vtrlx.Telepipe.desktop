@@ -1,8 +1,11 @@
 [Desktop Entry]
 Categories=GNOME;GTK;Utility;
 Name=Telepipe
-Keywords=console;command line;cli;terminal;
+Name[en]=Telepipe
+Keywords=console;command line;cli;terminal;pipe;
+Keywords[en]=console;command line;cli;terminal;pipe;
 Comment=Easily combine pipes with the clipboard
+Comment[en]=Easily combine pipes with the clipboard
 Type=Application
 Exec=telepipe
 Actions=new-window;

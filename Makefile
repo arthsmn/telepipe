@@ -13,11 +13,17 @@ CSRCS = $(wildcard *.c)
 LSRCS = $(wildcard *.lua)
 RESXML = data/telepipe.gresource.xml
 RES = $(patsubst %.xml, %, $(RESXML))
+POTFILE = po/MESSAGES.pot
+POFILES = $(wildcard po/*.po)
+MOFILES = \
+	$(patsubst po/%.po, \
+	locale/%/LC_MESSAGES/messages.mo, \
+	$(POFILES))
 
 BIN = telepipe
 BYTECODE = $(patsubst %.lua, %.bytecode, $(LSRCS))
 LIBS = -llua -ldl -lm
-CFLAGS += $(LIBS) -Wl,-E -DVERSION=$(VERSION)
+CFLAGS += $(LIBS) -Wl,-E -DPACKAGE="$(APPID)" -DVERSION=$(VERSION)
 
 DESKTOP_FILE = $(APPID).desktop
 ICON = $(APPID).svg
@@ -37,13 +43,25 @@ $(BIN): $(CSRCS) $(BYTECODE)
 %.bytecode: %.lua
 	luac -o $@ -- $<
 
+locale/%/LC_MESSAGES/messages.mo: po/%.po
+	@mkdir -p `dirname $@`
+	msgfmt $< -o $@
+
+po/%.po: $(POTFILE)
+	[ -f $@ ] || msginit -i $< -o $@ -l $(patsubst po/%.po,%,$@)
+	msgmerge -U $@ $<
+
+po/MESSAGES.pot: $(LSRCS) $(CSRCS)
+	xgettext --from-code utf-8 -o $@ $^
+
 .PHONY: clean install
 
 clean:
 	rm -f $(BIN) $(BYTECODE)
 
-install: $(BIN) $(RES)
+install: $(BIN) $(RES) $(MOFILES)
 	install -D -m 0755 -t $(PREFIX)/bin $<
+	cp -r locale $(PREFIX)/share
 	install -D -m 0644 -t $(PREFIX)/data $(RES)
 	install -D -m 0644 -t $(PREFIX)/share/applications $(DESKTOP_FILE)
 	install -D -m 0644 -t $(PREFIX)/share/icons/hicolor/128x128/apps icons/$(ICON)

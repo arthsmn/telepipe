@@ -11,8 +11,10 @@ You should have received a copy of the GNU General Public License along with thi
 
 local lib = require "telepipelib"
 
+local _ = lib.gettext
+
 local app_id = lib.get_app_id()
-local app_title = "Telepipe"
+local app_title = _ "Telepipe"
 
 -- Replace's the user's $HOME with the tilde "~" character, a common convention when displaying paths.
 function lib.fmtdir(path)
@@ -138,6 +140,10 @@ end
 
 -- SECTION: Command runner class
 
+local runnermenu = Gio.Menu()
+runnermenu:append(_ "Stop Running Command", "win.signal-kill")
+runnermenu:append(_ "Close Command Input", "win.signal-endinput")
+
 local runner = lib.newclass(function(self, pwd)
 	self.pwd = pwd or os.getenv "HOME"
 	self.outputqueue = ""
@@ -192,7 +198,7 @@ local runner = lib.newclass(function(self, pwd)
 
 	-- Search stuff. Lots of stuff going on here.
 	self.searchentry = Gtk.Text {
-		placeholder_text = "Search in output…",
+		placeholder_text = _ "Find in output…",
 		hexpand = true,
 		on_activate = function()
 			self:searchnext(self.searchentry.text)
@@ -241,14 +247,14 @@ local runner = lib.newclass(function(self, pwd)
 	}
 	local prevmatchbutton = Gtk.Button {
 		icon_name = "tp-up-symbolic",
-		tooltip_text = "Go to previous match",
+		tooltip_text = _ "Go to previous match",
 		on_clicked = function()
 			self:searchprev(self.searchentry.text)
 		end,
 	}
 	local nextmatchbutton = Gtk.Button {
 		icon_name = "tp-down-symbolic",
-		tooltip_text = "Go to next match",
+		tooltip_text = _ "Go to next match",
 		on_clicked = function()
 			self:searchnext(self.searchentry.text)
 		end,
@@ -273,22 +279,23 @@ local runner = lib.newclass(function(self, pwd)
 	self.searchbar:connect_entry(self.searchentry)
 	self.chdirbutton = Gtk.Button {
 		icon_name = "tp-folder-symbolic",
-		tooltip_text = "Select working directory",
+		tooltip_text = _ "Select working directory…",
 		on_clicked = function()
 			self:trychdir()
 		end,
 	}
-	self.killbutton = Gtk.Button {
-		icon_name = "tp-delete-symbolic",
-		tooltip_text = "Stop running command",
-		extra_css_classes = { "destructive-action" },
+	local menupopover = Gtk.PopoverMenu.new_from_model(runnermenu)
+	menupopover.halign = "START"
+	self.menubutton = Gtk.MenuButton {
+		icon_name = "tp-signal-symbolic",
+		direction = "UP",
+		tooltip_text = _ "Signal to running command…",
+		popover = menupopover,
 		visible = false,
-		on_clicked = function()
-			self:kill()
-		end,
 	}
 	self.historybutton = Gtk.MenuButton {
 		tooltip_text = "Command history",
+		icon_name = "tp-history-symbolic",
 		visible = false,
 		direction = "UP",
 		popover = Gtk.Popover {
@@ -313,7 +320,7 @@ local runner = lib.newclass(function(self, pwd)
 	self.sendbutton = Gtk.Button {
 		extra_css_classes = { "suggested-action" },
 		icon_name = "tp-run-symbolic",
-		tooltip_text = "Run command",
+		tooltip_text = _ "Run command",
 		sensitive = false,
 		on_clicked = function()
 			self:doactivate()
@@ -321,7 +328,7 @@ local runner = lib.newclass(function(self, pwd)
 	}
 	self.entry = Gtk.Text {
 		extra_css_classes = { "numeric" },
-		placeholder_text = "Run a command…",
+		placeholder_text = _ "Run a command…",
 		hexpand = true,
 		on_changed = function()
 			self.sendbutton.sensitive = #self.entry.text > 0
@@ -351,7 +358,7 @@ local runner = lib.newclass(function(self, pwd)
 		orientation = "HORIZONTAL",
 		extra_css_classes = { "linked" },
 		self.chdirbutton,
-		self.killbutton,
+		self.menubutton,
 		entrybox,
 		self.historybutton,
 	}
@@ -409,7 +416,7 @@ function runner:trychdir()
 			self:chdir(dir:get_path())
 			self:ensurenewlines()
 			-- guaranteed to be a dir, so this is safe
-			local message = "working directory ⇒	%s\n"
+			local message = _ "working directory ⇒	%s\n"
 			self:print(message:format(self:getpwdlabel()))
 		end
 	end)() --Call wrapped async context.
@@ -459,6 +466,11 @@ function runner:flush()
 	if not self.outputqueue:match "[^\n]" then return end
 	local newlines = self.outputqueue:match "\n*$"
 	local output = self.outputqueue:sub(1, -#newlines - 1)
+	local bel = "\u{07}"
+	if output:match(bel) then
+		self.tabpage.needs_attention = true
+	end
+	output = output:gsub(bel, "")
 	if output then
 		self:putstring(output)
 	end
@@ -491,6 +503,7 @@ end
 function runner:handlepipe(pipe, callback, copyafter)
 	Gio.Async.start(function()
 		repeat
+			-- This is technically a broken implementation. Telepipe uses UTF-8 to encode text, so the last byte(s) of the returned array may be an incomplete code point. In practice, this doesn't matter as the next read happens nearly-instantly because this async context has maximum io_priority and so the broken code point is fixed in the next write.
 			local bytes = pipe:async_read_bytes(4096)
 			if not bytes.data or #bytes.data == 0 then break end
 			callback(bytes.data)
@@ -507,10 +520,10 @@ function runner:copy()
 		local clipboard = Gdk.Display.get_default():get_clipboard()
 		clipboard:set(GObject.Value(GObject.Type.STRING, self.copyqueue))
 		self:ensurenewlines(1)
-		self:print "copied output to clipboard.\n"
+		self:print(_ "copied output to clipboard.\n")
 	else
 		self:ensurenewlines(1)
-		self:print "nothing to copy; clipboard has not been modified."
+		self:print(_ "nothing to copy; clipboard has not been modified.")
 	end
 	self.copyqueue = nil
 end
@@ -522,17 +535,17 @@ function runner:waitend(async)
 		local status = self.subproc:get_status()
 		if status ~= 0 then
 			self:ensurenewlines(1)
-			self:print(("exited with status code %d\n"):format(status))
+			self:print((_ "exited with status code %d\n"):format(status))
 		end
 		self.commandname = nil
 		self.subproc = nil
 		self.chdirbutton.visible = true
 		self.historybutton.visible = self.history.n_items > 0
-		self.killbutton.visible = false
+		self.menubutton.visible = false
 		self.entry.sensitive = true
-		self.entry.placeholder_text = "Run a command…"
+		self.entry.placeholder_text = _ "Run a command…"
 		self.sendbutton.icon_name = "tp-run-symbolic"
-		self.sendbutton.tooltip_text = "Run command"
+		self.sendbutton.tooltip_text = _ "Run command"
 		if #self.entry.text > 0 then self.sendbutton.sensitive = true end
 		self:updatetitle()
 		self.entry:grab_focus_without_selecting()
@@ -574,7 +587,7 @@ function runner:setupitem(listitem)
 	-- It is normally a better idea to bind signal handlers in the ::bind signal, after an item is bound. However, LuaGObject kind of makes it a bit of a nightmare to unbind signals. Someone should fix that.
 	local transferbutton = Gtk.Button {
 		icon_name = "tp-transfer-symbolic",
-		tooltip_text = "Copy command to command entry",
+		tooltip_text = _ "Copy command to command entry",
 		valign = "CENTER",
 		on_clicked = function()
 			local command = listitem.item.string
@@ -587,18 +600,27 @@ function runner:setupitem(listitem)
 	local deletebutton = Gtk.Button {
 		icon_name = "tp-delete-symbolic",
 		extra_css_classes = { "destructive-action" },
-		tooltip_text = "Remove from history",
+		tooltip_text = _ "Remove from history",
 		valign = "CENTER",
 		on_clicked = function()
 			local command = listitem.item.string
+			local index = self.history:find(command)
 			self:removehistory(command)
+			GLib.timeout_add(20, GLib.PRIORITY_DEFAULT, function()
+				if index >= self.history.n_items then
+					index = self.history.n_items - 1
+				end
+				if index >= 0 then
+					self.histview:scroll_to(index)
+				end
+			end)
 		end,
 	}
 
 	listitem.child = Gtk.Box {
 		orientation = "HORIZONTAL",
 		halign = "FILL",
-		spacing = 6,
+		spacing = 12,
 		margin_top = 6,
 		margin_bottom = 6,
 		margin_start = 6,
@@ -606,8 +628,10 @@ function runner:setupitem(listitem)
 		label,
 		Gtk.Box {
 			orientation = "HORIZONTAL",
+			spacing = 12,
+			margin_start = 12,
+			margin_end = 12,
 			halign = "END",
-			extra_css_classes = { "linked" },
 			transferbutton,
 			deletebutton,
 		},
@@ -658,8 +682,8 @@ function runner:exec(command)
 		self.entry.sensitive = false
 		self:putstring "pasting to "
 	else
-		self.entry.placeholder_text = "Send to running command…"
-		self.sendbutton.tooltip_text = "Send to running command"
+		self.entry.placeholder_text = _ "Send to running command…"
+		self.sendbutton.tooltip_text = _ "Send to running command"
 	end
 	self:putstring("⇒	" .. command)
 	self:print "\n"
@@ -688,9 +712,9 @@ function runner:exec(command)
 	}
 	self.chdirbutton.visible = false
 	self.historybutton.visible = false
-	self.killbutton.visible = true
+	self.menubutton.visible = true
 	self.sendbutton.icon_name = "tp-send-symbolic"
-	self.sendbutton.tooltip_text = "Send to running command"
+	self.sendbutton.tooltip_text = _ "Send to running command"
 	if dopipein then self:paste() end
 	local function copycb(text)
 		self.copyqueue = self.copyqueue .. text
@@ -819,9 +843,9 @@ end
 
 function runner:setmatches(total, current)
 	if type(current) == "number" and type(total) == "number" then
-		self.matchlabel.label = ("%d of %d"):format(current, total)
+		self.matchlabel.label = (_ "%d of %d"):format(current, total)
 	elseif total == 0 then
-		self.matchlabel.label = "no matches"
+		self.matchlabel.label = _ "no matches"
 	elseif type(total) == "number" then
 		self.matchlabel.label = ("%d"):format(total)
 	elseif type(total) == "string" then
@@ -928,7 +952,7 @@ function runner.builtin:exit()
 end
 
 function runner.builtin:help()
-	self:print [[
+	self:print(_ [[
 Telepipe is a command-line shell. Run command-line applications as you would normally.
 
 Add a > at the start of a command to paste your clipboard's contents into the command's input. Add a < at the start of a command to copy its output to the clipboard. Add a | at the start of a command to do both, pasting the clipboard as input and copying the output back to the clipboard.
@@ -944,35 +968,35 @@ Telepipe's built-in commands are
 THIS SOFTWARE IS EXPERIMENTAL. Expected features may not exist or may be subject to change. Many command-line programs will behave unusually, though in some cases this may be remedied using certain parameters or flags. Programs requiring the terminal will not function at all, and may output odd-looking text—avoid using these applications in Telepipe.
 
 Visit Telepipe's code repository at https://github.com/vtrlx/telepipe/ for more information or to submit an issue.
-]]
+]])
 end
 
 -- SECTION: Application menus
 
 local appmenu = Gio.Menu()
-appmenu:append("New Window", "win.new-win")
-appmenu:append("Search Command Output", "win.search")
-appmenu:append("Open Working Directory", "win.open-folder")
-appmenu:append("Keyboard Shortcuts", "win.shortcuts")
-appmenu:append("About " .. app_title, "win.about")
+appmenu:append(_ "New Window", "win.new-win")
+appmenu:append(_ "Search Command Output", "win.search")
+appmenu:append(_ "Open Working Directory", "win.open-folder")
+appmenu:append(_ "Keyboard Shortcuts", "win.shortcuts")
+appmenu:append(_ "About " .. app_title, "win.about")
 
 local function shortcuts(parent)
 	local cut = Adw.ShortcutsItem.new_from_action
 	local shortdlg = Adw.ShortcutsDialog {
 		Adw.ShortcutsSection {
 			title = "Window",
-			cut("New tab", "win.new-tab"),
-			cut("New window", "win.new-win"),
-			cut("Show keyboard shortcuts", "win.shortcuts"),
+			cut(_ "New Tab", "win.new-tab"),
+			cut(_ "New Window", "win.new-win"),
+			cut(_ "Show Keyboard Shortcuts", "win.shortcuts"),
 		},
 		Adw.ShortcutsSection {
 			title = "Runner tab",
-			cut("Search command output", "win.search"),
-			cut("Show working directory in Files", "win.open-folder"),
-			cut("Stop current command", "win.signal-kill"),
-			cut("Signal end of input", "win.signal-endinput"),
-			cut("Focus command entry", "win.focus-cmdbar"),
-			cut("Close tab", "win.close-tab"),
+			cut(_ "Search Command Output", "win.search"),
+			cut(_ "Show Working Directory in Files", "win.open-folder"),
+			cut(_ "Stop Current Command", "win.signal-kill"),
+			cut(_ "Close Command Input", "win.signal-endinput"),
+			cut(_ "Focus Command Entry", "win.focus-cmdbar"),
+			cut(_ "Close Current Tab", "win.close-tab"),
 		},
 	}
 	shortdlg:present(parent)
@@ -990,7 +1014,7 @@ local function about(parent)
 		website = "https://www.vtrlx.ca/apps/telepipe/",
 	}
 
-	aboutdlg:add_link("Contact the Developer", "mailto:victoria@vtrlx.ca?subject=Telepipe App")
+	aboutdlg:add_link(_ "Contact the Developer", "mailto:victoria@vtrlx.ca?subject=Telepipe")
 
 	aboutdlg:present(parent)
 end
@@ -1003,7 +1027,7 @@ window = lib.newclass(function(self)
 
 	local newbutton = Gtk.Button {
 		icon_name = "tp-newtab-symbolic",
-		tooltip_text = "New tab",
+		tooltip_text = _ "New Tab",
 		on_clicked = function()
 			self:newtab()
 		end,
@@ -1062,16 +1086,16 @@ window = lib.newclass(function(self)
 		end
 		self.tabview:close_page_finish(page, do_close)
 		if not do_close then
-			local body = "A command %q is running."
+			local body = _ "This tab cannot be closed because the command %q is running. Close anyway?"
 			local name = r.commandname
 			if #name > 20 then
 				commandname = utf8.char(utf8.codepoint(name, 1, 20))
 			end
 			body = body:format(name)
-			local dlg = Adw.AlertDialog.new("Stop running command?", body)
-			dlg:add_response("close", "Keep running")
+			local dlg = Adw.AlertDialog.new(_ "Stop Current Command?", body)
+			dlg:add_response("close", _ "Keep Running")
 			dlg:set_response_appearance("close", "DEFAULT")
-			dlg:add_response("discard", "Stop and close tab")
+			dlg:add_response("discard", _ "Stop and Close Tab")
 			dlg:set_response_appearance("discard", "DESTRUCTIVE")
 			function dlg.on_response(dlg, response)
 				if response == "discard" then
@@ -1151,10 +1175,10 @@ window = lib.newclass(function(self)
 			end)()
 		end
 		if #running > 0 then
-			local dlg = Adw.AlertDialog.new("Close window?", "There are running commands.")
-			dlg:add_response("cancel", "Keep open")
+			local dlg = Adw.AlertDialog.new(_ "Stop Running Commands?", _ "There are commands running in this window. Close anway?")
+			dlg:add_response("cancel", _ "Keep Open")
 			dlg:set_response_appearance("cancel", "DEFAULT")
-			dlg:add_response("discard", "Stop and close")
+			dlg:add_response("discard", _ "Stop All and Close")
 			dlg:set_response_appearance("discard", "DESTRUCTIVE")
 			function dlg:on_response(response)
 				if response == "discard" then close() end
@@ -1272,9 +1296,9 @@ function app:on_startup()
 	local win = window()
 	win:newtab()
 	local r = get_focused_runner()
-	r:print [[
+	r:print(_ [[
 Welcome to Telepipe. Type "help" in the command entry below (without quotation marks) then press the Enter key for more information on using this program.
-]]
+]])
 end
 
 return app:run { lib.get_cli_args() }
