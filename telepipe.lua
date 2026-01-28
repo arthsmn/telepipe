@@ -464,13 +464,14 @@ end
 function runner:flush()
 	if #self.outputqueue < 1 then return end
 	if not self.outputqueue:match "[^\n]" then return end
-	local newlines = self.outputqueue:match "\n*$"
-	local output = self.outputqueue:sub(1, -#newlines - 1)
+	local output = self.outputqueue
 	local bel = "\u{07}"
-	if output:match(bel) then
+	if output:match(bel) and self.tabview.selected_page ~= self.tabpage then
 		self.tabpage.needs_attention = true
 	end
 	output = output:gsub(bel, "")
+	local newlines = self.outputqueue:match "\n*$"
+	output = output:gsub("\n*$", "")
 	if output then
 		self:putstring(output)
 	end
@@ -1073,6 +1074,7 @@ window = lib.newclass(function(self)
 	end
 	function self.tabview.on_notify(tabview, spec)
 		if spec.name == "selected-page" and tabview.selected_page then
+			tabview.selected_page.needs_attention = false
 			local r = runners[self.tabview.selected_page.child]
 			r:updatetitle()
 			r.entry:grab_focus_without_selecting()
