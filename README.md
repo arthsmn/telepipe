@@ -14,6 +14,12 @@ Telepipe's name is a portmanteau of *teletypewriter* (or *teletype*), a device w
 
 ## Building
 
+Telepipe is built using Flatpak and targeting version 49 of the GNOME platform. With Flatpak installed and Flathub enabled as a source, ensure the platform and SDK are installed:
+
+```sh
+flatpak install org.gnome.Platform//49 org.gnome.Sdk//49
+```
+
 To build and install Telepipe from source, use [Flatpak Builder](https://docs.flatpak.org/en/latest/flatpak-builder.html). Clone this repository, navigate to it in a command-line shell, then run:
 
 ```sh
