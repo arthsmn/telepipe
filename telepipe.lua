@@ -144,8 +144,9 @@ local runnermenu = Gio.Menu()
 runnermenu:append(_ "Stop Running Command", "win.signal-kill")
 runnermenu:append(_ "Close Command Input", "win.signal-endinput")
 
-local runner = lib.newclass(function(self, pwd)
-	self.pwd = pwd or os.getenv "HOME"
+local runner = lib.newclass(function(self, params)
+	assert(params)
+	self.pwd = params.pwd or os.getenv "HOME"
 	self.outputqueue = ""
 	local factory = Gtk.SignalListItemFactory {
 		on_setup = function(_, ...) self:setupitem(...) end,
@@ -153,9 +154,9 @@ local runner = lib.newclass(function(self, pwd)
 		on_unbind = function(_, ...) self:unbinditem(...) end,
 		on_teardown = function(_, ...) self:teardownitem(...) end,
 	}
-	self.prefix = ""
+	self.prefix = params.prefix or ""
 	self.history = {
-		[""] = Gtk.StringList(),
+		[self.prefix] = Gtk.StringList(),
 	}
 	self.listitems = {}
 	self.histview = Gtk.ListView {
@@ -298,8 +299,8 @@ local runner = lib.newclass(function(self, pwd)
 	}
 	self.prefixbutton = Gtk.Button {
 		tooltip_text = _ "Clear current prefix",
-		label = "",
-		visible = false,
+		label = self.prefix,
+		visible = #self.prefix > 0,
 		on_clicked = function()
 			self:switchprefix ""
 			self:ensurenewlines()
@@ -392,6 +393,13 @@ local runner = lib.newclass(function(self, pwd)
 		bottom_bars = { self.searchbar, box },
 	}
 	runners[self.toolbarview] = self
+
+	if self.pwd ~= os.getenv "HOME" then
+		self:inserthistory("cd " .. lib.fmtdir(self.pwd))
+	end
+	if #self.prefix > 0 then
+		self:inserthistory("prefix " .. self.prefix)
+	end
 end)
 
 function runner:doactivate()
@@ -1333,19 +1341,18 @@ window = lib.newclass(function(self)
 end)
 
 function window:newtab()
-	local pwd, prefix
+	local params = {}
 	local selected = self.tabview.selected_page
 	local position = 0
 	if selected then
 		local current = runners[selected.child]
-		pwd = current.pwd
-		prefix = current.prefix
+		params.pwd = current.pwd
+		params.prefix = current.prefix
 		position = 1 + self.tabview:get_page_position(selected)
 	end
-	local r = runner(pwd)
+	local r = runner(params)
 	r.tabpage = self.tabview:insert(r.toolbarview, position)
 	self.tabview:set_selected_page(r.tabpage)
-	if prefix then r:switchprefix(prefix) end
 end
 
 -- SECTION: App startup
