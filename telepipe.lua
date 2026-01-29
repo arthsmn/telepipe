@@ -153,14 +153,17 @@ local runner = lib.newclass(function(self, pwd)
 		on_unbind = function(_, ...) self:unbinditem(...) end,
 		on_teardown = function(_, ...) self:teardownitem(...) end,
 	}
-	self.history = Gtk.StringList()
+	self.prefix = ""
+	self.history = {
+		[""] = Gtk.StringList(),
+	}
 	self.listitems = {}
 	self.histview = Gtk.ListView {
 		valign = "END",
 		width_request = 300,
 		factory = factory,
 		model = Gtk.NoSelection {
-			model = self.history,
+			model = self:gethistory(),
 		},
 	}
 	self.matches = {}
@@ -293,8 +296,18 @@ local runner = lib.newclass(function(self, pwd)
 		popover = menupopover,
 		visible = false,
 	}
+	self.prefixbutton = Gtk.Button {
+		tooltip_text = _ "Clear current prefix",
+		label = "",
+		visible = false,
+		on_clicked = function()
+			self:switchprefix ""
+			self:ensurenewlines()
+			self:putstring "prefix was cleared."
+		end,
+	}
 	self.historybutton = Gtk.MenuButton {
-		tooltip_text = "Command history",
+		tooltip_text = _ "Command history",
 		icon_name = "tp-history-symbolic",
 		visible = false,
 		direction = "UP",
@@ -358,6 +371,7 @@ local runner = lib.newclass(function(self, pwd)
 		orientation = "HORIZONTAL",
 		extra_css_classes = { "linked" },
 		self.chdirbutton,
+		self.prefixbutton,
 		self.menubutton,
 		entrybox,
 		self.historybutton,
@@ -541,8 +555,9 @@ function runner:waitend(async)
 		self.commandname = nil
 		self.subproc = nil
 		self.chdirbutton.visible = true
-		self.historybutton.visible = self.history.n_items > 0
+		self.prefixbutton.visible = #self.prefix > 0
 		self.menubutton.visible = false
+		self.historybutton.visible = self:gethistory().n_items > 0
 		self.entry.sensitive = true
 		self.entry.placeholder_text = _ "Run a command…"
 		self.sendbutton.icon_name = "tp-run-symbolic"
@@ -553,24 +568,51 @@ function runner:waitend(async)
 	end)() -- Call wrapped async context.
 end
 
+function runner:gethistory()
+	assert(self.history[self.prefix])
+	return self.history[self.prefix]
+end
+
 function runner:removehistory(command)
+	local history = self:gethistory()
 	repeat
-		local index = self.history:find(command)
-		if index >= self.history.n_items or index < 0 then break end
-		self.history:remove(index)
+		local index = history:find(command)
+		if index >= history.n_items or index < 0 then break end
+		history:remove(index)
 	until false
-	if self.history.n_items == 0 then
+	if history.n_items == 0 then
 		self.historybutton.visible = false
 		self.historybutton.popover:popdown()
 	end
 end
 
 function runner:inserthistory(command)
+	local history = self:gethistory()
 	self:removehistory(command)
-	self.history:append(command)
-	if self.history.n_items > 0 then
+	history:append(command)
+	if history.n_items > 0 then
 		self.historybutton.visible = true
 	end
+end
+
+function runner:switchprefix(prefix)
+	assert(type(prefix) == "string")
+	self.prefix = prefix
+	if not self.history[self.prefix] then
+		self.history[self.prefix] = Gtk.StringList()
+		self:inserthistory("prefix " .. prefix)
+	end
+	self.histview.model = Gtk.NoSelection {
+		model = self:gethistory(),
+	}
+	if #self.prefix > 24 then
+		local prefixslice = utf8.char(utf8.codepoint(self.prefix, 1, 20))
+		prefixslice = prefixslice:gsub("%s$", "")
+		self.prefixbutton.label = prefixslice .. "…"
+	elseif #self.prefix > 0 then
+		self.prefixbutton.label = self.prefix
+	end
+	self.prefixbutton.visible = #self.prefix > 0
 end
 
 function runner:setupitem(listitem)
@@ -605,11 +647,12 @@ function runner:setupitem(listitem)
 		valign = "CENTER",
 		on_clicked = function()
 			local command = listitem.item.string
-			local index = self.history:find(command)
+			local history = self:gethistory()
+			local index = history:find(command)
 			self:removehistory(command)
 			GLib.timeout_add(20, GLib.PRIORITY_DEFAULT, function()
-				if index >= self.history.n_items then
-					index = self.history.n_items - 1
+				if index >= history.n_items then
+					index = history.n_items - 1
 				end
 				if index >= 0 then
 					self.histview:scroll_to(index)
@@ -650,7 +693,7 @@ function runner:unbinditem(listitem)
 end
 
 function runner:teardownitem(listitem)
-	-- Everything just gets GC'd at this point, so no need to do anything.
+	-- Everything should just get GC'd at this point, so no need to do anything.
 end
 
 function runner:tryexec(command)
@@ -667,7 +710,7 @@ function runner:tryexec(command)
 			self:inserthistory(command)
 		end
 		runner.builtin[name](self, param)
-		self.historybutton.visible = self.history.n_items > 0
+		self.historybutton.visible = self:gethistory().n_items > 0
 	else
 		self:exec(command)
 	end
@@ -692,6 +735,9 @@ function runner:exec(command)
 	if dopipein or dopipeout then
 		command = lib.strip(command:sub(2))
 	end
+	if #self.prefix > 0 then
+		command = self.prefix .. " " .. command
+	end
 	local launcherargs = { "STDIN_PIPE", "STDOUT_PIPE", "STDERR_PIPE" }
 	if not dopipeout then
 		-- If the output isn't being copied, then the streams need to be merged.
@@ -712,8 +758,9 @@ function runner:exec(command)
 		command,
 	}
 	self.chdirbutton.visible = false
-	self.historybutton.visible = false
+	self.prefixbutton.visible = false
 	self.menubutton.visible = true
+	self.historybutton.visible = false
 	self.sendbutton.icon_name = "tp-send-symbolic"
 	self.sendbutton.tooltip_text = _ "Send to running command"
 	if dopipein then self:paste() end
@@ -932,6 +979,33 @@ end
 -- Built-in runner functions. If a command matches any of these names, it'll instead call a built-in.
 runner.builtin = {}
 
+-- The declaration for these functions is slightly misleading. Instead of self referring to the runner.builtin table, it instead refers to the runner instance due to how builtins are called. See runner:tryexec.
+
+function runner.builtin:help()
+	self:print(_ [=[
+Telepipe is a command-line shell. Run command-line applications as you would normally.
+
+Add a > at the start of a command to paste your clipboard's contents into the command's input. Add a < at the start of a command to copy its output to the clipboard. Add a | at the start of a command to do both, pasting the clipboard as input and copying the output back to the clipboard.
+
+Telepipe's built-in commands are
+• help
+	Print this help text.
+
+• cd [directory]
+	Changes the current working directory to the given path.
+• exit
+	Closes the current tab. If no tabs remain, closes the current window.
+• prefix [command [args…]]
+	Sets the prefix to the given command/arguments, clearing it if none is given.
+	If a prefix is set, it will be prepended to all subsequent commands—after any >, <, or | characters, if given.
+	Telepipe's built-in commands are unaffected by the current prefix.
+
+THIS SOFTWARE IS EXPERIMENTAL. Expected features may not exist or may be subject to change. Many command-line programs will behave unusually, though in some cases this may be remedied using certain parameters or flags. Programs requiring the terminal will not function at all, and may output odd-looking text—avoid using these applications in Telepipe.
+
+Visit Telepipe's code repository at https://github.com/vtrlx/telepipe/ for more information or to submit an issue.
+]=])
+end
+
 function runner.builtin:cd(dir)
 	if not dir or #dir == 0 then dir = os.getenv "HOME" end
 	dir = lib.expanddir(dir)
@@ -952,24 +1026,22 @@ function runner.builtin:exit()
 	end
 end
 
-function runner.builtin:help()
-	self:print(_ [[
-Telepipe is a command-line shell. Run command-line applications as you would normally.
-
-Add a > at the start of a command to paste your clipboard's contents into the command's input. Add a < at the start of a command to copy its output to the clipboard. Add a | at the start of a command to do both, pasting the clipboard as input and copying the output back to the clipboard.
-
-Telepipe's built-in commands are
-• cd [directory]
-	Changes the current working directory to the given path.
-• exit
-	Closes the current tab. If no tabs remain, closes the current window.
-• help
-	Print this help text.
-
-THIS SOFTWARE IS EXPERIMENTAL. Expected features may not exist or may be subject to change. Many command-line programs will behave unusually, though in some cases this may be remedied using certain parameters or flags. Programs requiring the terminal will not function at all, and may output odd-looking text—avoid using these applications in Telepipe.
-
-Visit Telepipe's code repository at https://github.com/vtrlx/telepipe/ for more information or to submit an issue.
-]])
+function runner.builtin:prefix(prefix)
+	if #self.prefix == 0 and #prefix == 0 then
+		self:ensurenewlines(1)
+		self:putstring "no prefix given."
+		return
+	end
+	prefix = prefix or ""
+	prefix = prefix:gsub("^%s*", ""):gsub("%s*$", "")
+	self:switchprefix(prefix, 1)
+	self:ensurenewlines(1)
+	if #self.prefix == 0 then
+		self:putstring "prefix was cleared."
+		self.prefixbutton.visible = false
+	else
+		self:putstring("switched to prefix ⇒	" .. self.prefix)
+	end
 end
 
 -- SECTION: Application menus
@@ -1261,17 +1333,19 @@ window = lib.newclass(function(self)
 end)
 
 function window:newtab()
-	local pwd
+	local pwd, prefix
 	local selected = self.tabview.selected_page
 	local position = 0
 	if selected then
 		local current = runners[selected.child]
 		pwd = current.pwd
+		prefix = current.prefix
 		position = 1 + self.tabview:get_page_position(selected)
 	end
 	local r = runner(pwd)
 	r.tabpage = self.tabview:insert(r.toolbarview, position)
 	self.tabview:set_selected_page(r.tabpage)
+	if prefix then r:switchprefix(prefix) end
 end
 
 -- SECTION: App startup
