@@ -77,6 +77,7 @@ local accels = {
 	["win.search"] = { "<Ctrl>F" },
 	["win.signal-kill"] = { "<Ctrl><Alt>C" },
 	["win.signal-endinput"] = { "<Ctrl><Alt>D" },
+	["win.signal-background"] = { "<Ctrl><Alt>Z" },
 	["win.shortcuts"] = { "<Ctrl><Shift>question" },
 	["win.about"] = { "F1" },
 }
@@ -143,6 +144,7 @@ end
 local runnermenu = Gio.Menu()
 runnermenu:append(_ "Stop Running Command", "win.signal-kill")
 runnermenu:append(_ "Close Command Input", "win.signal-endinput")
+runnermenu:append(_ "Send to Background", "win.signal-background")
 
 local runner = lib.newclass(function(self, params)
 	assert(params)
@@ -305,6 +307,7 @@ local runner = lib.newclass(function(self, params)
 			self:switchprefix ""
 			self:ensurenewlines()
 			self:putstring "prefix was cleared."
+			self:print "\n"
 		end,
 	}
 	self.historybutton = Gtk.MenuButton {
@@ -419,8 +422,31 @@ function runner:getpwdlabel()
 	return lib.fmtdir(self.pwd)
 end
 
+function runner:getprefixlabel(short)
+	assert(self.prefix and type(self.prefix) == "string")
+	if short and #self.prefix > 0 then
+		return (self.prefix:match("^%S*"))
+	elseif #self.prefix > 24 then
+		local prefixslice = utf8.char(utf8.codepoint(self.prefix, 1, 20))
+		prefixslice = prefixslice:gsub("%s$", "") -- Strip trailing space.
+		return prefixslice .. "…"
+	else
+		return self.prefix
+	end
+end
+
 function runner:gettitle()
-	return self.commandname, self:getpwdlabel(), nil
+	local prefix = self:getprefixlabel(true)
+	local pwd = self:getpwdlabel()
+	local pretty = pwd
+	if #prefix > 0 then
+		pretty = ("(%s) %s"):format(prefix, pwd)
+	end
+	local icon
+	if self.subproc then
+		icon = "tp-running-symbolic"
+	end
+	return self.commandname, pwd, pretty, icon
 end
 
 function runner:updatetitle()
@@ -438,7 +464,7 @@ function runner:trychdir()
 			self:chdir(dir:get_path())
 			self:ensurenewlines()
 			-- guaranteed to be a dir, so this is safe
-			local message = _ "working directory ⇒	%s\n"
+			local message = _ "new working directory →	%s\n"
 			self:print(message:format(self:getpwdlabel()))
 		end
 	end)() --Call wrapped async context.
@@ -551,28 +577,34 @@ function runner:copy()
 	self.copyqueue = nil
 end
 
+function runner:finish()
+	self.commandname = nil
+	self.subproc = nil
+	self.chdirbutton.visible = true
+	self.prefixbutton.visible = #self.prefix > 0
+	self.menubutton.visible = false
+	self.historybutton.visible = self:gethistory().n_items > 0
+	self.entry.sensitive = true
+	self.entry.placeholder_text = _ "Run a command…"
+	self.sendbutton.icon_name = "tp-run-symbolic"
+	self.sendbutton.tooltip_text = _ "Run command"
+	if #self.entry.text > 0 then self.sendbutton.sensitive = true end
+	self:updatetitle()
+	self.entry:grab_focus_without_selecting()
+end
+
 function runner:waitend(async)
 	if not self.subproc then return end
 	Gio.Async.start(function()
+		local subproc = self.subproc
 		self.subproc:async_wait()
+		if self.subproc ~= subproc then return end
 		local status = self.subproc:get_status()
 		if status ~= 0 then
 			self:ensurenewlines(1)
 			self:print((_ "exited with status code %d\n"):format(status))
 		end
-		self.commandname = nil
-		self.subproc = nil
-		self.chdirbutton.visible = true
-		self.prefixbutton.visible = #self.prefix > 0
-		self.menubutton.visible = false
-		self.historybutton.visible = self:gethistory().n_items > 0
-		self.entry.sensitive = true
-		self.entry.placeholder_text = _ "Run a command…"
-		self.sendbutton.icon_name = "tp-run-symbolic"
-		self.sendbutton.tooltip_text = _ "Run command"
-		if #self.entry.text > 0 then self.sendbutton.sensitive = true end
-		self:updatetitle()
-		self.entry:grab_focus_without_selecting()
+		self:finish()
 	end)() -- Call wrapped async context.
 end
 
@@ -613,14 +645,9 @@ function runner:switchprefix(prefix)
 	self.histview.model = Gtk.NoSelection {
 		model = self:gethistory(),
 	}
-	if #self.prefix > 24 then
-		local prefixslice = utf8.char(utf8.codepoint(self.prefix, 1, 20))
-		prefixslice = prefixslice:gsub("%s$", "")
-		self.prefixbutton.label = prefixslice .. "…"
-	elseif #self.prefix > 0 then
-		self.prefixbutton.label = self.prefix
-	end
+	self.prefixbutton.label = self:getprefixlabel()
 	self.prefixbutton.visible = #self.prefix > 0
+	self:updatetitle()
 end
 
 function runner:setupitem(listitem)
@@ -707,7 +734,7 @@ end
 function runner:tryexec(command)
 	command = lib.strip(command)
 	if #command == 0 then return end
-	local name = command:match "^[^%s]*"
+	local name = command:match "^%S*"
 	if runner.builtin[name] then
 		self:ensurenewlines()
 		self:putstring("⇒	" .. command)
@@ -730,20 +757,26 @@ function runner:exec(command)
 	local prefix = command:sub(1, 1)
 	local dopipein = prefix == ">" or prefix == "|"
 	local dopipeout = prefix == "<" or prefix == "|"
+	local dobackground = prefix == "&"
 	if dopipein then
 		self.entry.sensitive = false
 		self:putstring "pasting to "
-	else
+	elseif not dobackground then
 		self.entry.placeholder_text = _ "Send to running command…"
 		self.sendbutton.tooltip_text = _ "Send to running command"
 	end
-	self:putstring("⇒	" .. command)
+	if dobackground then
+		self:putstring("spawning ⇒	" .. command)
+	else
+		self:putstring("⇒	" .. command)
+	end
 	self:print "\n"
 	self.commandname = command
-	if dopipein or dopipeout then
+	if dopipein or dopipeout or dobackground then
 		command = lib.strip(command:sub(2))
 	end
 	if #self.prefix > 0 then
+		self.commandname = ("(%s) %s"):format(self.prefix, command)
 		command = self.prefix .. " " .. command
 	end
 	local launcherargs = { "STDIN_PIPE", "STDOUT_PIPE", "STDERR_PIPE" }
@@ -765,6 +798,10 @@ function runner:exec(command)
 		"-c",
 		command,
 	}
+	if dobackground then
+		self:sever()
+		return
+	end
 	self.chdirbutton.visible = false
 	self.prefixbutton.visible = false
 	self.menubutton.visible = true
@@ -789,6 +826,14 @@ function runner:exec(command)
 	end
 	self:updatetitle()
 	self:waitend()
+end
+
+function runner:sever()
+	if not self.subproc then return end
+	self:close "stdin"
+	self:close "stdout"
+	self:close "stderr"
+	self:finish()
 end
 
 function runner:kill()
@@ -826,14 +871,18 @@ function runner:paste()
 	end)() -- Call wrapped async context.
 end
 
-function runner:close()
+function runner:close(pipe)
 	if not self.subproc then return end
+	if not pipe then pipe = "stdin" end
 	Gio.Async.start(function()
-		local stdin = self.subproc:get_stdin_pipe()
-		if stdin:is_closed() or stdin:is_closing() then return end
-		self.entry.sensitive = false
-		self.sendbutton.sensitive = false
-		stdin:async_close()
+		local pipefunc = "get_" .. pipe .. "_pipe"
+		local pipe = self.subproc[pipefunc](self.subproc)
+		if not pipe or pipe:is_closed() or pipe:is_closing() then return end
+		if pipe == "stdin" then
+			self.entry.sensitive = false
+			self.sendbutton.sensitive = false
+		end
+		pipe:async_close()
 	end)() -- Call wrapped async context.
 end
 
@@ -991,22 +1040,28 @@ runner.builtin = {}
 
 function runner.builtin:help()
 	self:print(_ [=[
-Telepipe is a command-line shell. Run command-line applications as you would normally.
+Telepipe is a command-line shell. Run command-line applications as you would in a terminal.
 
-Add a > at the start of a command to paste your clipboard's contents into the command's input. Add a < at the start of a command to copy its output to the clipboard. Add a | at the start of a command to do both, pasting the clipboard as input and copying the output back to the clipboard.
+Shell commands may begin with a special control character to modify their behaviour. These are,
+• &command
+	Quietly runs "command" in the background, without input or output. Applications started this way will persist after Telepipe is closed.
+• >command
+	Paste's the clipboard's contents into "command" as input.
+• <command
+	Copy the output of "command" into the clipboard once it finishes.
+• |command
+	Combines the < and > control characters, allowing "command" to transform the clipboard's contents.
 
-Telepipe's built-in commands are
+Telepipe can be controlled through certain built-in commands. These are,
 • help
 	Print this help text.
-
 • cd [directory]
-	Changes the current working directory to the given path.
+	Changes the current working directory to the given path. If no path is given, changes the current working directory to the home directory.
 • exit
 	Closes the current tab. If no tabs remain, closes the current window.
 • prefix [command [args…]]
-	Sets the prefix to the given command/arguments, clearing it if none is given.
-	If a prefix is set, it will be prepended to all subsequent commands—after any >, <, or | characters, if given.
-	Telepipe's built-in commands are unaffected by the current prefix.
+	Sets the prefix to the given command/arguments. If no command is given, clears the prefix. Whenever a prefix is set, it will be prepended to all subsequent shell commands—after any special prefix characters, if given.
+Telepipe's built-in commands are not considered shell commands, and are thus unaffected by special
 
 THIS SOFTWARE IS EXPERIMENTAL. Expected features may not exist or may be subject to change. Many command-line programs will behave unusually, though in some cases this may be remedied using certain parameters or flags. Programs requiring the terminal will not function at all, and may output odd-looking text—avoid using these applications in Telepipe.
 
@@ -1021,7 +1076,11 @@ function runner.builtin:cd(dir)
 	local target = current:resolve_relative_path(dir)
 	if target then
 		dir = target:get_path()
-		self:inserthistory("cd " .. lib.fmtdir(target:get_path()))
+		local pretty = lib.fmtdir(dir)
+		self:ensurenewlines(1)
+		self:putstring(("new working directory →	%s"):format(pretty))
+		self:print "\n"
+		self:inserthistory("cd " .. pretty)
 	end
 	self:chdir(dir)
 end
@@ -1038,6 +1097,7 @@ function runner.builtin:prefix(prefix)
 	if #self.prefix == 0 and #prefix == 0 then
 		self:ensurenewlines(1)
 		self:putstring "no prefix given."
+		self:print "\n"
 		return
 	end
 	prefix = prefix or ""
@@ -1048,8 +1108,9 @@ function runner.builtin:prefix(prefix)
 		self:putstring "prefix was cleared."
 		self.prefixbutton.visible = false
 	else
-		self:putstring("switched to prefix ⇒	" .. self.prefix)
+		self:putstring("switched to prefix →	" .. self.prefix)
 	end
+	self:print "\n"
 end
 
 -- SECTION: Application menus
@@ -1065,17 +1126,18 @@ local function shortcuts(parent)
 	local cut = Adw.ShortcutsItem.new_from_action
 	local shortdlg = Adw.ShortcutsDialog {
 		Adw.ShortcutsSection {
-			title = "Window",
+			title = "Telepipe Window",
 			cut(_ "New Tab", "win.new-tab"),
 			cut(_ "New Window", "win.new-win"),
 			cut(_ "Show Keyboard Shortcuts", "win.shortcuts"),
 		},
 		Adw.ShortcutsSection {
-			title = "Runner tab",
+			title = "Command Runner Tab",
 			cut(_ "Search Command Output", "win.search"),
 			cut(_ "Show Working Directory in Files", "win.open-folder"),
 			cut(_ "Stop Current Command", "win.signal-kill"),
 			cut(_ "Close Command Input", "win.signal-endinput"),
+			cut(_ "Quietly Send to Background", "win.signal-background"),
 			cut(_ "Focus Command Entry", "win.focus-cmdbar"),
 			cut(_ "Close Current Tab", "win.close-tab"),
 		},
@@ -1128,12 +1190,12 @@ window = lib.newclass(function(self)
 		if not r then return end
 		r.tabview = self.tabview
 		self.toolbarview.top_bar_style = "RAISED_BORDER"
-		function r.settitle(r, title, subtitle, icon)
-			page.title = title or subtitle
+		function r.settitle(r, title, subtitle, tabtitle, icon)
+			page.title = title or tabtitle
 			if icon then
-				page.icon = Gio.Icon.new_for_string(icon)
+				page.indicator_icon = Gio.Icon.new_for_string(icon)
 			else
-				page.icon = nil
+				page.indicator_icon = nil
 			end
 			if tabview.selected_page == page then
 				self.win.title = subtitle
@@ -1168,7 +1230,7 @@ window = lib.newclass(function(self)
 		end
 		self.tabview:close_page_finish(page, do_close)
 		if not do_close then
-			local body = _ "This tab cannot be closed because the command %q is running. Close anyway?"
+			local body = _ "The command %q is running in this tab. Close anyway?"
 			local name = r.commandname
 			if #name > 20 then
 				commandname = utf8.char(utf8.codepoint(name, 1, 20))
@@ -1177,11 +1239,17 @@ window = lib.newclass(function(self)
 			local dlg = Adw.AlertDialog.new(_ "Stop Current Command?", body)
 			dlg:add_response("close", _ "Keep Running")
 			dlg:set_response_appearance("close", "DEFAULT")
-			dlg:add_response("discard", _ "Stop and Close Tab")
+			dlg:add_response("sever", _ "Send to Background and Close")
+			dlg:set_response_appearance("sever", "DEFAULT")
+			dlg:add_response("discard", _ "Stop Command and Close")
 			dlg:set_response_appearance("discard", "DESTRUCTIVE")
 			function dlg.on_response(dlg, response)
 				if response == "discard" then
 					r:kill()
+					runners[page.child] = nil
+					self.tabview:close_page(page)
+				elseif response == "sever" then
+					r:sever()
 					runners[page.child] = nil
 					self.tabview:close_page(page)
 				end
@@ -1288,6 +1356,15 @@ window = lib.newclass(function(self)
 		local r = get_focused_runner()
 		if not r then return end
 		r:close()
+	end)
+
+	lib.addnewaction(self.win, "signal-background", function()
+		local r = get_focused_runner()
+		if not r then return end
+		r:sever()
+		r:ensurenewlines(1)
+		r:putstring(_ "command was sent to the background.")
+		r:print "\n"
 	end)
 
 	lib.addnewaction(self.win, "focus-cmdbar", function()

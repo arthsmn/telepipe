@@ -22,6 +22,8 @@
 		<file preprocess="xml-stripblanks"
 			>icons/scalable/actions/tp-run-symbolic.svg</file>
 		<file preprocess="xml-stripblanks"
+			>icons/scalable/actions/tp-running-symbolic.svg</file>
+		<file preprocess="xml-stripblanks"
 			>icons/scalable/actions/tp-search-symbolic.svg</file>
 		<file preprocess="xml-stripblanks"
 			>icons/scalable/actions/tp-send-symbolic.svg</file>
