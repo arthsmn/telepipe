@@ -2,25 +2,13 @@
 
 Most Linux command-line software and workflows assume that a terminal console is being used. Naturally, this poses some problems for using a non-terminal command-line shell. This document contains advice for using specific programs from Telepipe.
 
-# Contents
-
-General Advice:
-1. [Not a Terminal](#not-a-terminal)
-2. [Switching to Telepipe](#switching-to-telepipe)
-
-Specific programs:
-1. [clear](#clear)
-2. [ls](#ls)
-3. [ssh](#ssh)
-4. [sudo](#sudo)
-
-# General Advice
+## General Advice
 
 Because there have been decades of work put into making command-line programs work with specific kinds of console terminals while comparatively little time has been put into developing tools to run command-lines outside of the terminal, it can be difficult for longtime terminal users to get accustomed to Telepipe.
 
 **This list is not comprehensive!** If you use Telepipe and find interesting workarounds for your problems, consider submitting a change to this document.
 
-## Not a Terminal
+### Not a Terminal
 
 The single most important piece of advice is therefore to remember that **Telepipe is not a terminal**. It does not implement PTYs. It does not handle ioctls. It does not colorize or decorate text. It does not use monospace fonts. Telepipe is closer to being a command-line shell that is presented through a graphical interface instead of a terminal. This also means that keyboard shortcuts that seasoned terminal users would expect are absent—Ctrl+C will copy selected text instead of aborting the running program, and Ctrl+D will open the file manager in the current working directory instead of sending an end-of-transmission signal. Other shortcuts are provided for these functions instead.
 
@@ -30,7 +18,7 @@ Because Telepipe uses non-interactive shells to run commands, shell aliases are 
 
 Do not expect Telepipe to replace the terminal—expect to need to dip back into a terminal emulator for work which specifically requires it.
 
-## Command-Line Programs in Telepipe
+### Command-Line Programs in Telepipe
 
 By default, many command-line programs will work flawlessly in Telepipe. This is because most well-behaved command-line applications will detect that they are not running inside a terminal, and will adjust their outputs accordingly.
 
@@ -38,11 +26,11 @@ Some commands will work in Telepipe, but in ways which are unintuitive. In these
 
 Certain commands which depend explicitly on terminal support (like `vim`) fail to exit when executed in a non-terminal environment. These programs need to be stopped manually from Telepipe.
 
-# Specific Programs
+## Specific Programs
 
 The following sections consist of advice for dealing with crucial programs which behave oddly or suboptimally in Telepipe.
 
-## clear
+### clear
 
 The program `clear` does not work in Telepipe, and Telepipe intentionally provides no alternative.
 
@@ -50,7 +38,7 @@ The suggested method of completely clearing the command output view is to focus 
 
 Telepipe omits a `clear` builtin in an effort to break users' preexisting habits of compulsively clearing terminal output. If the goal is to remove irrelevant command output from a session, Telepipe allows one to do exactly that without deleting everything else. One must simply select the region to delete as one normally would in a text editor, then delete it. This allows important text such as file names emitted by previous commands to be preserved without needing to constantly redo those commands to generate the same outputs.
 
-## ls
+### ls
 
 GNU `ls` in works flawlessly in Telepipe, but it leaves something to be desired. As Telepipe lacks completions, filling in filenames can be somewhat cumbersome. The intended solution to this is to use programs like `ls` to list the filenames before dragging-and-dropping ones you want to work with back into the command entry. This only works for the current directory, as `ls` does not include relative paths when listing other directories. This can be easily remedied by using the `-d` flag, but it will only list the given path instead of the directory's children as would be expected from other invocations of `ls`. One would normally need to call `ls -d <directory>/*` to list files from other directories with full relative paths, which can be frustrating to remember.
 
@@ -73,7 +61,9 @@ else
 fi
 ```
 
-## ssh
+An alternative solution is to use `ls` from the [Plan 9 Port](https://github.com/9fans/plan9port), which is well-behaved in Telepipe.
+
+### ssh
 
 Secure Shell (SSH) is the gold standard for accessing other systems through a terminal. Unfortunately, its most common use case (running an interactive remote command-line shell) behaves oddly when not run in a terminal.
 
@@ -83,7 +73,7 @@ An advantage to this approach of working with remote resources is that locally-i
 
 If it's necessary to use software only available on a remote system, it is still possible to invoke SSH to run single commands in the form of `ssh user@host <command> [parameters…]`. Interactive remote commands which don't require a terminal should continue working as normal in Telepipe when executed directly from SSH.
 
-## sudo
+### sudo
 
 Normally, `sudo` requires a terminal to enter a password, making it unusable from Telepipe.
 

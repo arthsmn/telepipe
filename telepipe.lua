@@ -285,7 +285,7 @@ local runner = lib.newclass(function(self, params)
 	self.searchbar:connect_entry(self.searchentry)
 	self.chdirbutton = Gtk.Button {
 		icon_name = "tp-folder-symbolic",
-		tooltip_text = _ "Select working directory…",
+		tooltip_text = _ "Select new working directory…",
 		on_clicked = function()
 			self:trychdir()
 		end,
@@ -1065,8 +1065,9 @@ Telepipe can be controlled through certain built-in commands. These are,
 • exit
 	Closes the current tab. If no tabs remain, closes the current window.
 • prefix [command [args…]]
-	Sets the prefix to the given command/arguments. If no command is given, clears the prefix. Whenever a prefix is set, it will be prepended to all subsequent shell commands—after any special prefix characters, if given.
-Telepipe's built-in commands are not considered shell commands, and are thus unaffected by special
+	Sets the prefix to the given command/arguments. If no command is given, deactivates the prefix instead. Whenever a prefix is set, it will be prepended to all subsequent shell commands—after any special prefix characters, if given.
+
+Telepipe's built-in commands are not considered shell commands, and are thus unaffected by special control characters or prefixes.
 
 THIS SOFTWARE IS EXPERIMENTAL. Expected features may not exist or may be subject to change. Many command-line programs will behave unusually, though in some cases this may be remedied using certain parameters or flags. Programs requiring the terminal will not function at all, and may output odd-looking text—avoid using these applications in Telepipe.
 
@@ -1107,10 +1108,10 @@ function runner.builtin:prefix(prefix)
 	self:switchprefix(prefix, 1)
 	self:ensurenewlines(1)
 	if #self.prefix == 0 then
-		self:putstring "prefix was cleared."
+		self:putstring "prefix was deactivated."
 		self.prefixbutton.visible = false
 	else
-		self:putstring("switched to prefix →	" .. self.prefix)
+		self:putstring("active prefix →	" .. self.prefix)
 	end
 	self:print "\n"
 end

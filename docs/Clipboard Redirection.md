@@ -1,6 +1,6 @@
 # Clipboard Redirection
 
-Telepipe's defining feature is its ability to redirect the clipboard's contents into commands and redirect command output into the clipboard. It is even possible to do both at once, enabling the use of command-line applications to quickly transform the contents of the clipboard. As the clipboard is nearly-universally supported, clipboard redirection grants advanced text editing capabilities to **virtually any app.**
+Telepipe has the ability to redirect the clipboard's contents into commands and redirect command output into the clipboard. It is even possible to do both at once, enabling the use of command-line applications to quickly transform the contents of the clipboard. As clipboard support is ubiquitous, clipboard redirection grants advanced text processing capabilities to **virtually any app.**
 
 The examples here use programs from GNU coreutils—which should be available on any Linux machine by default—unless otherwise noted.
 
@@ -10,7 +10,7 @@ This list is incomplete. Submit a pull request or [send an email](mailto:victori
 
 Clipboard redirection is done by prefixing a command with either `>` to paste the clipboard into the given command, `<` to copy the command's output to the clipboard, or `|` to do both.
 
-This feature makes it easy to seamlessly use the clipboard to interact with command-line applications, which unlocks many advanced text processing capabilities.
+This feature makes it easy to seamlessly use the clipboard to interact with command-line applications without needing to add lengthy command names to each command pipeline, enabling quick and efficient processing of text sourced from anywhere.
 
 ## Basic Usage
 

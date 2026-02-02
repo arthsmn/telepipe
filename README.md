@@ -40,17 +40,21 @@ Test your changes with `flatpak run ca.vtrlx.Telepipe.Devel` or by selecting it 
 
 **Clipboard redirection**: Commands run in Telepipe can use the current clipboard contents as their input by prefixing with `>`, they can automatically copy their output to the clipboard by prefixing with `<`, or they can do both by prefixing with `|`.
 
-More information—including examples—is available in this feature's [documentation page](https://github.com/vtrlx/telepipe/blob/trunk/docs/Clipboard%20Redirection.md).
+More information—including examples—is available in the [documentation page](https://github.com/vtrlx/telepipe/blob/trunk/docs/Clipboard%20Redirection.md) for clipboard redirection.
 
-**Output editing:** The command output section is a full text editor. This allows you to make notes, amend output for further execution, or quickly erase sections of command output which are no longer needed. Additionally, selections from the terminal output can be dragged-and-dropped down into the command entry. Because output from `ls` can be quickly dropped into further command lines, this greatly alleviates the need for tab completions (which Telepipe does not have).
+**Command prefixes**: It is possible to explicitly set text (called a "prefix") which will be prepended to all subsequent commands until deactivated. Prefixes can be used to easily access remote systems without using subshells as well as avoid straining one's hands through repetitive typing.
 
-**Obvious exit status:** Commands which exit with errors will have their exit status noted after their output has finished displaying, eliminating the need to include it in one's shell prompt (which Telepipe does not have).
+Detailed explanations and examples on the usage of prefixes can be found in the [documentation page](https://github.com/vtrlx/telepipe/blob/trunk/docs/Prefixes.md) for prefixes.
 
-**Simple history:** Each of Telepipe's tabs keeps its own history, accessible from the up arrow button to the right of the command entry (visible only when there is a command history). From here, commands may be rerun, copied to the clipboard, or removed from history.
+**Output editing:** The command output section is a full text editor. This allows you to make notes, amend output for further execution, or quickly erase sections of command output which are no longer needed. Selections from the terminal output can even be dragged-and-dropped down into the command entry for use as parameters to subsequent commands.
+
+**Clear exit status:** Commands which exit with errors will have their exit status clearly noted after their output has finished displaying, eliminating the need to include it in one's shell prompt (which Telepipe does not have).
+
+**Visual command history:** Each of Telepipe's tabs keeps its own history, shown as a list from a menu button to the right of the command entry (visible only when there is a command history). From here, commands may be removed from history, or be copied back into the command entry to be rerun or amended.
 
 ## Anti-Features
 
-Telepipe is not intended to replicate existing terminal emulators; It was designed from the ground up to provide a way to interact with command-line software in ways that work better with modern user experience conventions. Many features common to terminal emulators and command-line shells are explicitly intended not to be included in Telepipe, such as:
+Telepipe is not intended to replicate existing terminal emulators; It was designed from the ground up to provide a way to interact with command-line software that works better with modern user experience conventions. Many features common to terminal emulators and command-line shells are explicitly excluded in Telepipe because they are not needed. Examples include:
 
 - Tab completion
 - Output colorizing
