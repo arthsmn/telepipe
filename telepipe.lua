@@ -299,9 +299,10 @@ local runner = lib.newclass(function(self, params)
 		popover = menupopover,
 		visible = false,
 	}
+	local prefixlabel, prefixtooltip = self:getprefixlabel()
 	self.prefixbutton = Gtk.Button {
-		tooltip_text = _ "Clear current prefix",
-		label = self.prefix,
+		tooltip_text = prefixtooltip,
+		label = prefixlabel,
 		visible = #self.prefix > 0,
 		on_clicked = function()
 			self:switchprefix ""
@@ -424,14 +425,15 @@ end
 
 function runner:getprefixlabel(short)
 	assert(self.prefix and type(self.prefix) == "string")
+	local tooltip = (_ "Clear prefix %q"):format(self.prefix)
 	if short and #self.prefix > 0 then
 		return (self.prefix:match("^%S*"))
 	elseif #self.prefix > 24 then
 		local prefixslice = utf8.char(utf8.codepoint(self.prefix, 1, 20))
 		prefixslice = prefixslice:gsub("%s$", "") -- Strip trailing space.
-		return prefixslice .. "…"
+		return prefixslice .. "…", tooltip
 	else
-		return self.prefix
+		return self.prefix, tooltip
 	end
 end
 
@@ -461,11 +463,9 @@ function runner:trychdir()
 	Gio.Async.start(function()
 		local dir = filedialog:async_select_folder(app.active_window)
 		if dir then
-			self:chdir(dir:get_path())
+			-- guaranteed to be a dir, so there will be a message
 			self:ensurenewlines()
-			-- guaranteed to be a dir, so this is safe
-			local message = _ "new working directory →	%s\n"
-			self:print(message:format(self:getpwdlabel()))
+			self:chdir(dir:get_path())
 		end
 	end)() --Call wrapped async context.
 end
@@ -477,6 +477,9 @@ function runner:chdir(path)
 		self:print(("not a directory: %s\n"):format(path))
 	else
 		self.pwd = dir:get_path()
+		self:ensurenewlines(1)
+		local message = _ "new working directory →	%s\n"
+		self:print(message:format(self:getpwdlabel()))
 	end
 	self:updatetitle()
 end
@@ -645,7 +648,9 @@ function runner:switchprefix(prefix)
 	self.histview.model = Gtk.NoSelection {
 		model = self:gethistory(),
 	}
-	self.prefixbutton.label = self:getprefixlabel()
+	local prefixlabel, prefixtooltip = self:getprefixlabel()
+	self.prefixbutton.label = prefixlabel
+	self.prefixbutton.tooltip_text = prefixtooltip
 	self.prefixbutton.visible = #self.prefix > 0
 	self:updatetitle()
 end
@@ -1077,9 +1082,6 @@ function runner.builtin:cd(dir)
 	if target then
 		dir = target:get_path()
 		local pretty = lib.fmtdir(dir)
-		self:ensurenewlines(1)
-		self:putstring(("new working directory →	%s"):format(pretty))
-		self:print "\n"
 		self:inserthistory("cd " .. pretty)
 	end
 	self:chdir(dir)
