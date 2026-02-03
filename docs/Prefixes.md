@@ -52,3 +52,56 @@ Host *
 These configuration options allow all SSH sessions to a given host to share the same underlying connection, including those which mount a file system. After the last connection to a given host is closed, the link is also preserved for 300 seconds (five minutes), allowing subsequent SSH sessions to the host to be initiated much more quickly.
 
 If a `Host *` section already exists in SSH's configuration, add the three Control- lines to that section instead. The value of `ControlPath` here assumes that SSH configuration lives in `$HOME/.ssh`—if it lives in another directory, change the `ControlPath` value accordingly.
+
+### Nix Shell
+
+For many programs which allow the execution of shell commands, one can simply pass the subcommand and its arguments as parameters to the parent command, which will handle everything on its own. Certain programs do not allow this, requiring instead that subcommands be passed as a single parameter, usually in quotation marks. This makes the use of prefixes somewhat difficult for the use of programs like nix-shell, but not impossible.
+
+Save the following bash shell script as `quote-to`:
+
+```sh
+#!/bin/bash
+
+if [ "$#" -eq "0" ]
+then
+	printf "usage: quoteto <command> [params...] -- [subcommand]\n"
+	printf "The quoteto script will wrap arguments after the double-dash in quotes as a single parameter to the given command.\n"
+	exit 1
+fi
+
+PREFIX=""
+
+while true
+do
+	if [ "$#" -eq "0" ]
+	then
+		printf "failed to run; no '--' parameter specified\n"
+		exit 1
+	elif [ "$1" == "--" ]
+	then
+		break
+	else
+		PREFIX="$PREFIX $1"
+	fi
+	shift 1
+done
+
+shift 1
+
+echo $PREFIX '"'"$@"'"'
+$PREFIX "$@"
+```
+
+This will send parameter passed after a double-dash as a single quoted parameter to the program specified. To use this script to run a nix-shell without needing quotes:
+
+```
+quote-to nix-shell -p <packages...> --run -- command [params...]
+```
+
+This is thus usable in Telepipe by setting it as a prefix:
+
+```
+prefix quote-to nix-shell -p <packages...> --run --
+```
+
+Then, all subsequent commands executed within this Telepipe prefix will be executed through nix-shell as a single quoted parameter to the `--run` flag, without needing to remember to quote every single command when entering them.
