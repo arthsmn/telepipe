@@ -581,6 +581,7 @@ function runner:copy()
 end
 
 function runner:finish()
+	self.forcedexit = nil
 	self.commandname = nil
 	self.subproc = nil
 	self.chdirbutton.visible = true
@@ -602,8 +603,11 @@ function runner:waitend(async)
 		local subproc = self.subproc
 		self.subproc:async_wait()
 		if self.subproc ~= subproc then return end
-		local status = self.subproc:get_status()
-		if status ~= 0 then
+		local status = math.ceil(self.subproc:get_status() / 256)
+		if self.forcedexit then
+			self:ensurenewlines(1)
+			self:print(_ "command was stopped")
+		elseif status ~= 0 then
 			self:ensurenewlines(1)
 			self:print((_ "exited with status code %d\n"):format(status))
 		end
@@ -843,6 +847,7 @@ end
 
 function runner:kill()
 	if not self.subproc then return end
+	self.forcedexit = true
 	self.subproc:force_exit()
 end
 
