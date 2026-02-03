@@ -26,6 +26,14 @@ Some commands will work in Telepipe, but in ways which are unintuitive. In these
 
 Certain commands which depend explicitly on terminal support (like `vim`) fail to exit when executed in a non-terminal environment. These programs need to be stopped manually from Telepipe.
 
+### No Environment Variables
+
+Telepipe does not have support for environment variables, but there are still ways to set them for programs:
+
+The first option is to manually specify variables before the execution of a command by adding `VAR=VALUE` before any executed commands which need them. The use of [prefixes](https://github.com/vtrlx/telepipe/blob/trunk/docs/Prefixes.md) can alleviate repetition if the same variables are needed for several commands in a row.
+
+The second option is to set and even export environment variables using shell scripts. This solution is recommended for situations where the specific environment being used would be needed infrequently over a lengthy time horizon.
+
 ## Specific Programs
 
 The following sections consist of advice for dealing with crucial programs which behave oddly or suboptimally in Telepipe.

@@ -8,11 +8,13 @@ Telepipe's solution to the problem of repetition is called **prefixes**. When a 
 
 Prefixes big and small allow for more deliberate work that is less error-prone and which requires far fewer repetitive motions when compared to the same work done in a terminal.
 
-## Usage
+## Overview
 
 Activate a prefix by typing `prefix` followed by the text to be prefixed. For instance, `prefix git` will activate a Git prefix and `prefix ssh myhost` will activate a prefix for running commands on a remote host using SSH.
 
 When active, an extra button is made visible to the left of the command entry. If multiple tabs are open, then each tab's title will begin with the first word of its current prefix in parentheses, if active.
+
+As the prefix is prominently displayed just before the command entry, there is never any confusion as to whether a shell command or a subcommand should be entered. A prefix can thus be seen as a way to create ad-hoc command-line shells for any arbitrary command or script.
 
 A prefix is only active for the tab in which it was activated. However, new tabs will inherit the current selected tab's prefix, if available. Within a given tab, each prefix keeps a separate history—prior commands will be hidden upon activating a prefix, and commands run within the prefix will be hidden when switching active prefixes or deactivating the current one. Lastly, [clipboard redirection](https://github.com/vtrlx/telepipe/blob/trunk/docs/Clipboard%20Redirection.md) works correctly when a prefix is active.
 
@@ -20,25 +22,31 @@ The current prefix can be deactivated either by pressing the prefix button or by
 
 Telepipe's built-in commands such as `cd` and `prefix` itself are unaffected by the current prefix.
 
-## Examples
+## Basic Usage
 
-### Version Control (Git, etc.)
+The simplest form of prefix is for general use of a specific shell command by simply setting the prefix to the name of the program.
 
-> `prefix git`
+```
+prefix git
+prefix fossil
+prefix hg
+```
 
-This prefix allows one to work in Git by directly issuing subcommands such as `fetch`, `pull`, `status`, `add -p`, `commit`, or `push`.
+Prefixes like these allow for a Telepipe tab to become dedicated to using the given version control software (e.g.: Git, Fossil, Mercurial) without needing to always retype the program name.
 
-A similar outcome can be achieved with other version control systems using prefixes relevant to them as well, such as e.g.: `prefix fossil` or `prefix hg`.
+## Advanced Examples
 
 ### Secure Shell (OpenSSH)
 
-> `prefix ssh <hostname>`
+```
+prefix ssh <hostname>
+```
 
 Though it is recommended to use [filesystem mounts](https://github.com/vtrlx/telepipe/blob/trunk/docs/Tips%20and%20Tricks.md#ssh) to interact with remote filesystems over SSH in Telepipe, it's still necessary to occasionally run commands on a remote system—prefixes are especially useful to facilitate this.
 
 When an SSH prefix is active, subsequent commands will be executed on the remote machine using SSH's built-in command syntax (which is just to write the command line after the hostname). This gives the experience of running on an interactive remote shell without the downside of running an interactive shell from within Telepipe.
 
-It is also possible to add further commands to an SSH prefix for working with specific programs on a remote host.
+It is also possible to add further commands to an SSH prefix for working with specific programs on a remote host, as one would do on their local host.
 
 To make an SSH prefix more reliable in Telepipe, consider using multiplexed connections. These can be enabled by adding the following to an SSH configuration file:
 
@@ -55,7 +63,7 @@ If a `Host *` section already exists in SSH's configuration, add the three Contr
 
 ### Nix Shell
 
-For many programs which allow the execution of shell commands, one can simply pass the subcommand and its arguments as parameters to the parent command, which will handle everything on its own. Certain programs do not allow this, requiring instead that subcommands be passed as a single parameter, usually in quotation marks. This makes the use of prefixes somewhat difficult for the use of programs like nix-shell, but not impossible.
+For many programs which allow the execution of shell commands, one can simply pass the subcommand and its arguments as parameters to the parent command, which will handle everything on its own. Certain programs do not allow this, requiring instead that subcommands be passed as a single parameter, usually in quotation marks. This makes the use of prefixes somewhat difficult for the use of programs like nix-shell—which requires a `--run` parameter followed by a quoted command-line—but not impossible.
 
 Save the following bash shell script as `quote-to`:
 
@@ -64,35 +72,35 @@ Save the following bash shell script as `quote-to`:
 
 if [ "$#" -eq "0" ]
 then
-	printf "usage: quoteto <command> [params...] -- [subcommand]\n"
-	printf "The quoteto script will wrap arguments after the double-dash in quotes as a single parameter to the given command.\n"
+	printf "usage: quote-to <command> [params...] -- [params...]\n"
+	printf "The quote-to script will wrap arguments after the double-dash in quotes as a single parameter to the end of the given command.\n"
 	exit 1
 fi
 
-PREFIX=""
+COMMAND=""
 
 while true
 do
 	if [ "$#" -eq "0" ]
 	then
-		printf "failed to run; no '--' parameter specified\n"
+		printf "can't run; no '--' parameter specified\n"
 		exit 1
 	elif [ "$1" == "--" ]
 	then
 		break
 	else
-		PREFIX="$PREFIX $1"
+		COMMAND="$COMMAND $1"
 	fi
 	shift 1
 done
 
 shift 1
 
-echo $PREFIX '"'"$@"'"'
-$PREFIX "$@"
+echo $COMMAND '"'"$@"'"'
+$COMMAND "$@"
 ```
 
-This will send parameter passed after a double-dash as a single quoted parameter to the program specified. To use this script to run a nix-shell without needing quotes:
+This script will send parameters passed after a double-dash as a single quoted parameter to the program specified. To use this script to run `command` in a specific nix-shell without needing quotes:
 
 ```
 quote-to nix-shell -p <packages...> --run -- command [params...]
@@ -105,3 +113,5 @@ prefix quote-to nix-shell -p <packages...> --run --
 ```
 
 Then, all subsequent commands executed within this Telepipe prefix will be executed through nix-shell as a single quoted parameter to the `--run` flag, without needing to remember to quote every single command when entering them.
+
+To get the prefix shown in Telepipe's tabs to show something more specific than "(quote-to)" so as to disambiguate from other prefixes using the same script, consider creating a new script that calls `quote-to nix-shell $@` and give it a name specific to nix-shell.

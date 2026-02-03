@@ -1240,7 +1240,7 @@ window = lib.newclass(function(self)
 			end
 			body = body:format(name)
 			local dlg = Adw.AlertDialog.new(_ "Stop Current Command?", body)
-			dlg:add_response("close", _ "Keep Running")
+			dlg:add_response("close", _ "Keep Open")
 			dlg:set_response_appearance("close", "DEFAULT")
 			dlg:add_response("sever", _ "Send to Background and Close")
 			dlg:set_response_appearance("sever", "DEFAULT")
