@@ -29,6 +29,21 @@ function lib.strip(text)
 	return text:gsub("^%s*", ""):gsub("%s*$", "")
 end
 
+function lib.fileexists(path)
+	local ok, err, code = os.rename(path, path)
+	if not ok and code == 13 then
+		-- In Linux, error code 13 when moving a file means that it failed because the directory cannot be made its own child. Any other error means the file does not exist.
+		return true
+	end
+	return ok
+end
+
+function lib.isdir(path)
+	if path == "/" then return true end
+	-- If the given path points to a directory, then adding a "/" suffix will show the file as still existing.
+	return lib.fileexists(path .. "/")
+end
+
 -- Simple class implementation without inheritance.
 function lib.newclass(init)
 	local c = {}
@@ -63,7 +78,7 @@ local Gtk = LuaGObject.Gtk
 local app = Adw.Application {
 	application_id = lib.get_app_id(),
 	resource_base_path = "/ca/vtrlx/Telepipe", -- Needs to be hardcoded.
-	flags = { "HANDLES_COMMAND_LINE" },
+	flags = { "HANDLES_COMMAND_LINE" }, -- Only for --new-window.
 }
 
 app:add_main_option("new-window", string.byte "n", "IN_MAIN", "NONE", "Create a new window.")
@@ -73,6 +88,7 @@ local accels = {
 	["win.new-tab"] = { "<Ctrl>T" },
 	["win.close-tab"] = { "<Ctrl>W" },
 	["win.new-win"] = { "<Ctrl>N" },
+	["win.open-file"] = { "<Ctrl>O" },
 	["win.open-folder"] = { "<Ctrl>D" },
 	["win.search"] = { "<Ctrl>F" },
 	["win.signal-kill"] = { "<Ctrl><Alt>C" },
@@ -419,6 +435,44 @@ function runner:grab()
 	self.entry:grab_focus_without_selecting()
 end
 
+function runner:enterfile(path)
+	assert(path)
+	local buffer = self.entry.buffer
+	local text = buffer.text
+	local position = self.entry:get_position()
+	local bound, ins = self.entry:get_selection_bounds()
+	if bound and ins then
+		position = math.max(bound, ins)
+		self.entry:select_region(position, position)
+	end
+	if position == -1 and not text:match "%s$" then
+		position = position + buffer:insert_text(position, " ", -1)
+	end
+	if path:match "[%s'\"]" then
+		path = ("%q"):format(path)
+	end
+	path = path .. " "
+	position = position + buffer:insert_text(position, path, -1)
+	self.entry:select_region(position, position)
+end
+
+function runner:selectfiles()
+	local pwd = Gio.File.new_for_path(self.pwd)
+	local filedialog = Gtk.FileDialog {
+		initial_folder = pwd,
+	}
+	Gio.Async.start(function()
+		local list = filedialog:async_open_multiple(app.active_window)
+		if not list then return end
+		for i = 1, list.n_items do
+			-- Gio's API documents say that ListModel's :get_item() method is not available to language bindings and to use :get_object() instead. That's not the case for LuaGObject, which binds :get_item() and returns the object itself instead of a pointer.
+			local file = list:get_item(i - 1)
+			-- It's not exactly clear why, but relative paths that aren't direct ancestors/descendents don't seem to work properly.
+			self:enterfile(pwd:get_relative_path(file) or file:get_path())
+		end
+	end)() --Call wrapped async context.
+end
+
 function runner:getpwdlabel()
 	return lib.fmtdir(self.pwd)
 end
@@ -658,6 +712,8 @@ function runner:switchprefix(prefix)
 	self.prefixbutton.visible = #self.prefix > 0
 	self:updatetitle()
 end
+
+-- ListView handlers.
 
 function runner:setupitem(listitem)
 	local label = Gtk.Label {
@@ -1147,6 +1203,7 @@ local function shortcuts(parent)
 			cut(_ "Close Command Input", "win.signal-endinput"),
 			cut(_ "Quietly Send to Background", "win.signal-background"),
 			cut(_ "Focus Command Entry", "win.focus-cmdbar"),
+			cut(_ "Enter File Path in Entry", "win.open-file"),
 			cut(_ "Close Current Tab", "win.close-tab"),
 		},
 	}
@@ -1244,13 +1301,13 @@ window = lib.newclass(function(self)
 				commandname = utf8.char(utf8.codepoint(name, 1, 20))
 			end
 			body = body:format(name)
-			local dlg = Adw.AlertDialog.new(_ "Stop Current Command?", body)
+			local dlg = Adw.AlertDialog.new(_ "Close This Tab?", body)
 			dlg:add_response("close", _ "Keep Open")
 			dlg:set_response_appearance("close", "DEFAULT")
-			dlg:add_response("sever", _ "Send to Background and Close")
-			dlg:set_response_appearance("sever", "DEFAULT")
 			dlg:add_response("discard", _ "Stop Command and Close")
 			dlg:set_response_appearance("discard", "DESTRUCTIVE")
+			dlg:add_response("sever", _ "Send to Background and Close")
+			dlg:set_response_appearance("sever", "DEFAULT")
 			function dlg.on_response(dlg, response)
 				if response == "discard" then
 					r:kill()
@@ -1394,6 +1451,12 @@ window = lib.newclass(function(self)
 		r:showfolder()
 	end)
 	self.showfolder.enabled = false
+
+	lib.addnewaction(self.win, "open-file", function()
+		local r = get_focused_runner()
+		if not r then return end
+		r:selectfiles()
+	end)
 
 	lib.addnewaction(self.win, "new-tab", function()
 		self:newtab()
