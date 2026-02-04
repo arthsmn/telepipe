@@ -325,6 +325,7 @@ local runner = lib.newclass(function(self, params)
 			self:ensurenewlines()
 			self:putstring "prefix was cleared."
 			self:print "\n"
+			self:grab()
 		end,
 	}
 	self.historybutton = Gtk.MenuButton {
