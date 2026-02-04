@@ -18,21 +18,29 @@ Because Telepipe uses non-interactive shells to run commands, shell aliases are 
 
 Do not expect Telepipe to replace the terminal—expect to need to dip back into a terminal emulator for work which specifically requires it.
 
-### Command-Line Programs in Telepipe
+### A Mouse is Recommended
+
+Telepipe is built with the assumption that the user will have a mouse available, and many tasks in Telepipe are more efficient with the mouse than using only a keyboard.
+
+Telepipe allows certain usage patterns not possible in a conventional terminal, such as:
+- Using a mouse to point the cursor to and edit specific parts of a command-line before it is sent
+- Dragging-and-dropping command output text back into the command entry
+- Dragging-and-dropping files from a file manager to insert file paths to a command-line
+- Quickly highlighting and deleting irrelevant command output
+
+### Filename Completions
+
+Telepipe does not support automatic file completion using the tab key when entering commands. This decision was made intentionally under the belief that tab completion habits promote compulsive use of the tab key when entering any file name, eventually leading to repetitive strain injury.
+
+Telepipe instead offers the ability to use the system file picker to insert a file name into the command entry at the current cursor's position. The file picker can be opened by pressing Ctrl+O, and can be operated using only a keyboard. Unlike tab completion, the file picker can also search other locations and will even match files by content instead of only by name.
+
+### Programs Broken in Telepipe
 
 By default, many command-line programs will work flawlessly in Telepipe. This is because most well-behaved command-line applications will detect that they are not running inside a terminal, and will adjust their outputs accordingly.
 
 Some commands will work in Telepipe, but in ways which are unintuitive. In these cases, workarounds are likely present. For instance, shells will default to running in non-interactive mode, but can be made interactive by passing a flag—usually `-i`. Shells forced to be interactive may emit error messages when started, but should otherwise work as expected.
 
 Certain commands which depend explicitly on terminal support (like `vim`) fail to exit when executed in a non-terminal environment. These programs need to be stopped manually from Telepipe.
-
-### No Environment Variables
-
-Telepipe does not have support for environment variables, but there are still ways to set them for programs:
-
-The first option is to manually specify variables before the execution of a command by adding `VAR=VALUE` before any executed commands which need them. The use of [prefixes](https://github.com/vtrlx/telepipe/blob/trunk/docs/Prefixes.md) can alleviate repetition if the same variables are needed for several commands in a row.
-
-The second option is to set and even export environment variables using shell scripts. This solution is recommended for situations where the specific environment being used would be needed infrequently over a lengthy time horizon.
 
 ## Specific Programs
 
@@ -42,7 +50,7 @@ The following sections consist of advice for dealing with crucial programs which
 
 The program `clear` does not work in Telepipe, and Telepipe intentionally provides no alternative.
 
-The suggested method of completely clearing the command output view is to focus it, select all text (either by secondary-clicking and choosing "Select All", typing Ctrl+A, or using the select all button on a touchscreen cursor), then deleting the selection.
+The suggested method of completely clearing the command output view is to focus it, select all text (either by secondary-clicking and choosing "Select All", typing Ctrl+A, or using the select all button on a touchscreen cursor), then delete the selection.
 
 Telepipe omits a `clear` builtin in an effort to break users' preexisting habits of compulsively clearing terminal output. If the goal is to remove irrelevant command output from a session, Telepipe allows one to do exactly that without deleting everything else. One must simply select the region to delete as one normally would in a text editor, then delete it. This allows important text such as file names emitted by previous commands to be preserved without needing to constantly redo those commands to generate the same outputs.
 
