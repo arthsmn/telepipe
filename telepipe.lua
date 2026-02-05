@@ -155,6 +155,73 @@ do
 	Gtk.StyleContext.add_provider_for_display(display, provider, 1000000)
 end
 
+-- SECTION: Environment Variables
+
+local envvarmodel = Gtk.StringList()
+
+local validname = "[A-Za-z_][A-Za-z0-9_]*"
+local envvars = {}
+
+local confdir = os.getenv "XDG_CONFIG_HOME" .. "/telepipe/"
+local envfile = confdir .. "env"
+local envfilenext = confdir .. "envnext"
+
+local function mkdir(path)
+	local file = Gio.File.new_for_path(path)
+	file:make_directory_with_parents()
+end
+
+local function saveenv()
+	local env = ""
+	for name, value in pairs(envvars) do
+		env = env .. ("%s=%s\n"):format(name, value)
+	end
+	-- This should be guaranteed to work, because of Flatpak.
+	io.open(envfilenext, "w"):write(env):close()
+	os.rename(envfilenext, envfile)
+end
+
+local function setenv(name, value)
+	if envvars[name] then
+		local formatted = ("%s=%s"):format(name, envvars[name])
+		local index = envvarmodel:find(formatted)
+		envvarmodel:remove(index)
+	end
+	if value then
+		envvarmodel:append(("%s=%s"):format(name, value))
+	end
+	envvars[name] = value
+	saveenv()
+end
+
+local function parseenv(env)
+	local pattern = ("(%s)=([^\n]*)"):format(validname)
+	for name, value in env:gmatch(pattern) do
+		-- Added manually to prevent stomping out the environment.
+		envvarmodel:append(("%s=%s"):format(name, value))
+		envvars[name] = value
+	end
+end
+
+local function loadenv()
+	-- If the "next" file exists, then a partial write wasn't completed.
+	if lib.fileexists(envfilenext) then
+		os.rename(envfilenext, envfile)
+	end
+	if not lib.fileexists(envfile) then return end
+	parseenv(io.open(envfile):read "a")
+end
+
+
+do -- Load the configured global environment variables.
+	if lib.fileexists(confdir) and not lib.isdir(confdir) then
+		-- Configuration is broken due to external influence. Because this app runs in a Flatpak sandbox, any files inside of it should be expected to be under control of the app, so deleting it shouldn't violate any reasonable user expectations.
+		os.remove(tallydir)
+	end
+	if not lib.fileexists(confdir) then mkdir(confdir) end
+	loadenv()
+end
+
 -- SECTION: Command runner class
 
 local runnermenu = Gio.Menu()
@@ -164,6 +231,7 @@ runnermenu:append(_ "Send to Background", "win.signal-background")
 
 local runner = lib.newclass(function(self, params)
 	assert(params)
+	self.env = {}
 	self.pwd = params.pwd or os.getenv "HOME"
 	self.outputqueue = ""
 	local factory = Gtk.SignalListItemFactory {
@@ -450,6 +518,7 @@ function runner:enterfile(path)
 		position = position + buffer:insert_text(position, " ", -1)
 	end
 	if path:match "[%s'\"]" then
+		-- As a nice bonus, the %q format specifier also escapes quotes.
 		path = ("%q"):format(path)
 	end
 	path = path .. " "
@@ -797,6 +866,42 @@ function runner:teardownitem(listitem)
 	-- Everything should just get GC'd at this point, so no need to do anything.
 end
 
+-- Execution
+
+function runner:getenv(name)
+	return self.env[name] or envvars[name] or ""
+end
+
+function runner:getexecargs(command)
+	-- Basic flatpak-spawn parameters
+	local args = {
+		"flatpak-spawn",
+		"--host",
+		"--watch-bus",
+	}
+	-- Environment variables
+	for name, value in pairs(envvars) do
+		table.insert(args, ("--env=%s=%s"):format(name, value))
+	end
+	for name, value in pairs(self.env) do
+		table.insert(args, ("--env=%s=%s"):format(name, value))
+	end
+	-- The shell command itself
+	local shell = self:getenv "SHELL"
+	if #shell == 0 then
+		-- If not explicitly configured, get the shell from Telepipe's environment.
+		shell = os.getenv "SHELL" or os.getenv "shell"
+	end
+	if #shell == 0 or shell:sub(1, 1) ~= "/" then
+		-- Shell param needs to be an absolute path, so if it doesn't exist it must be set, otherwise Telepipe cannot execute commands.
+		shell = "/bin/bash"
+	end
+	table.insert(args, shell)
+	table.insert(args, "-c")
+	table.insert(args, command)
+	return args
+end
+
 function runner:tryexec(command)
 	command = lib.strip(command)
 	if #command == 0 then return end
@@ -852,18 +957,7 @@ function runner:exec(command)
 	end
 	local launcher = Gio.SubprocessLauncher.new(launcherargs)
 	launcher:set_cwd(self.pwd)
-	launcher:setenv("TERM", "dumb")
-	launcher:setenv("PAGER", "cat")
-	self.subproc = launcher:spawnv {
-		"flatpak-spawn",
-		"--host",
-		"--watch-bus",
-		"--env=TERM=dumb",
-		"--env=PAGER=cat",
-		os.getenv "SHELL",
-		"-c",
-		command,
-	}
+	self.subproc = launcher:spawnv(self:getexecargs(command))
 	if dobackground then
 		self:sever()
 		return
@@ -1122,12 +1216,19 @@ Shell commands may begin with a special control character to modify their behavi
 Telepipe can be controlled through certain built-in commands. These are,
 • help
 	Print this help text.
-• cd [directory]
-	Changes the current working directory to the given path. If no path is given, changes the current working directory to the home directory.
 • exit
 	Closes the current tab. If no tabs remain, closes the current window.
+• cd [directory]
+	Changes the current working directory to the given path. If no path is given, changes the current working directory to the home directory.
 • prefix [command [args…]]
-	Sets the prefix to the given command/arguments. If no command is given, deactivates the prefix instead. Whenever a prefix is set, it will be prepended to all subsequent shell commands—after any special prefix characters, if given.
+	Sets this tab's prefix to the given command/arguments. If no command is given, deactivates the prefix instead. Whenever a prefix is set, it will be prepended to all subsequent shell commands—after any special prefix characters, if given.
+• setenv [name[=[value]]]
+	If no parameters are given, prints out the tab's environment variables.
+	If a name is given, prints out the value of the given environment variable.
+	If a name and equal sign are given, unsets the given environment variable.
+	If a name, equal sign, and value are given, sets the given environment variable to the given value.
+• clearenv
+	Unsets all of the tab's environment variables.
 
 Telepipe's built-in commands are not considered shell commands, and are thus unaffected by special control characters or prefixes.
 
@@ -1148,6 +1249,14 @@ function runner.builtin:cd(dir)
 		self:inserthistory("cd " .. pretty)
 	end
 	self:chdir(dir)
+end
+
+function runner.builtin:clearenv()
+	local names = {}
+	for name in pairs(self.env) do table.insert(names, name) end
+	for _, name in ipairs(names) do self.env[name] = nil end
+	self:ensurenewlines(1)
+	self:putstring(_ "environment variables were cleared")
 end
 
 function runner.builtin:exit()
@@ -1178,12 +1287,47 @@ function runner.builtin:prefix(prefix)
 	self:print "\n"
 end
 
+function runner.builtin:setenv(param)
+	if not param then
+		for k, v in pairs(self.env) do
+			self:ensurenewlines(1)
+			self:putstring(k .. "=" .. v)
+		end
+		return
+	end
+	local pattern = "^%s*(" .. validname .. ")"
+	local name = param:match(pattern)
+	local value = param:match "=.*"
+	if not name then
+		self:ensurenewlines(1)
+		self:putstring(_ "given variable name is invalid")
+	elseif not value then
+		self:ensurenewlines(1)
+		value = self.env[name] or envvars[name]
+		if value then
+			self:putstring(name .. "=" .. value)
+		else
+			self:putstring((_ "variable %s is unset"):format(name))
+		end
+	elseif #value == 1 then
+		self.env[name] = nil
+		self:ensurenewlines(1)
+		self:putstring((_ "cleared variable %s"):format(name))
+	else
+		value = value:sub(2)
+		self.env[name] = value
+		self:ensurenewlines(1)
+		self:putstring((_ "set variable %s to %q"):format(name, value))
+	end
+end
+
 -- SECTION: Application menus
 
 local appmenu = Gio.Menu()
 appmenu:append(_ "New Window", "win.new-win")
 appmenu:append(_ "Search Command Output", "win.search")
 appmenu:append(_ "Open Working Directory", "win.open-folder")
+appmenu:append(_ "Preferences", "win.preferences")
 appmenu:append(_ "Keyboard Shortcuts", "win.shortcuts")
 appmenu:append(_ "About " .. app_title, "win.about")
 
@@ -1474,6 +1618,10 @@ window = lib.newclass(function(self)
 		self.tabview:close_page(page)
 	end)
 
+	lib.addnewaction(self.win, "preferences", function()
+		self:preferences()
+	end)
+
 	lib.addnewaction(self.win, "shortcuts", function()
 		shortcuts(self.win)
 	end)
@@ -1502,6 +1650,90 @@ function window:newtab()
 	local r = runner(params)
 	r.tabpage = self.tabview:insert(r.toolbarview, position)
 	self.tabview:set_selected_page(r.tabpage)
+end
+
+function window:preferences()
+	local envvargroup = Adw.PreferencesGroup {
+		title = _ "Global Environment Variables",
+		description = _ "Environment variables assigned here will be exported to every command that is executed.",
+	}
+	envvargroup:bind_model(envvarmodel, function(listitem)
+		local line = listitem.string
+		local pattern = "^%s*(" .. validname .. ")"
+		local name = line:match(pattern)
+		local value = (line:match "=.*"):sub(2)
+		local deletebutton = Gtk.Button {
+			extra_css_classes = { "flat" },
+			icon_name = "tp-delete-symbolic",
+			tooltip_text = _ "Clear this environment variable",
+			valign = "CENTER",
+			on_clicked = function()
+				-- Causes the environment variable to be deleted.
+				setenv(name, nil)
+			end,
+		}
+		return Adw.ActionRow {
+			extra_css_classes = { "property" },
+			title = name,
+			subtitle = value,
+			suffixes = deletebutton,
+		}
+	end)
+
+	local namerow = Adw.EntryRow {
+		title = _ "Name",
+	}
+	local valuerow = Adw.EntryRow {
+		title = _ "Value",
+	}
+	local addrow = Adw.ButtonRow {
+		extra_css_classes = { "suggested-action" },
+		title = _ "Set Variable",
+		sensitive = false,
+		on_activated = function()
+			local pattern = "^%s*(" .. validname .. ")%s*$"
+			local name = namerow.text:match(pattern)
+			setenv(name, valuerow.text)
+			namerow.text = ""
+			valuerow.text = ""
+		end,
+	}
+
+	local function validate()
+		local isvalid = true
+		local pattern = "^%s*(" .. validname .. ")%s*$"
+		if not namerow.text:match(pattern) then
+			namerow:add_css_class "error"
+			isvalid = false
+		else
+			namerow:remove_css_class "error"
+		end
+		if #valuerow.text == 0 then
+			valuerow:add_css_class "error"
+			isvalid = false
+		else
+			namerow:remove_css_class "error"
+		end
+		addrow.sensitive = isvalid
+	end
+	namerow.on_changed = validate
+	valuerow.on_changed = validate
+
+	local envaddgroup = Adw.PreferencesGroup {
+		title = _ "Set or Add Environment Variable",
+		namerow,
+		valuerow,
+		addrow,
+	}
+
+	local dialog = Adw.PreferencesDialog {
+		Adw.PreferencesPage {
+			title = _ "Preferences",
+			envvargroup,
+			envaddgroup,
+		},
+	}
+	dialog:present(self.win)
 end
 
 -- SECTION: App startup
