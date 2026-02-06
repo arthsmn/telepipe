@@ -8,16 +8,16 @@ Run command-line apps smoothly.
 
 Telepipe is a graphical command-line shell for GNOME. Telepipe offers the ability to run command-line applications using modern text editing conventions, such as using the mouse to move your cursor when entering a command, or dragging-and-dropping text selections from the command output window back into the command entry or out to other programs.
 
-Despite appearances, it is **not a terminal**. This means that TUI apps will not work in Telepipe, but most text-mode programs should work without issue. This also means that you should consider Telepipe itself to be your shell, instead of an interface to your shell. For adjusting to Telepipe's peculiarities as well as making good use of certain programs, see the list of [tips and tricks](https://github.com/vtrlx/telepipe/blob/trunk/docs/Tips%20and%20Tricks.md) for using this software.
+Despite appearances, Telepipe is **not a terminal**. This means that TUI apps will not work in this app, but most text-mode command-line programs should work without issue. Instead of thinking of it as an interface to a command-line shell, you should consider Telepipe itself to be your shell. For adjusting to its peculiarities as well as making good use of certain programs, see the list of [tips and tricks](https://github.com/vtrlx/telepipe/blob/trunk/docs/Tips%20and%20Tricks.md) for using Telepipe.
 
-Telepipe's name is a portmanteau of *teletypewriter* (or *teletype*), a device which in this context allows its user to run a command-line shell from a physical typewriter, and *pipe*, a common command-line feature on UNIX and UNIX-like systems which allows the output of one command to be used as the input of another commnand. Pipelines are an especially powerful way to leverage command-line applications for advanced text processing, and Telepipe's core feature for facilitating their use is [clipboard redirection](https://github.com/vtrlx/telepipe/blob/trunk/docs/Clipboard%20Redirection.md), which allows commands to read from and write to the system clipboard.
+Telepipe's name is a portmanteau of *teletypewriter* (or *teletype*), a device which in this context allows its user to run a command-line shell from a physical typewriter, and *pipe*, a common command-line feature on UNIX and UNIX-like systems which allows the output of one command to be used as the input of another commnand. Pipelines are an especially powerful way to leverage command-line applications for advanced text processing, and Telepipe's core feature for facilitating their use is [clipboard redirection](https://github.com/vtrlx/telepipe/blob/trunk/docs/Clipboard%20Redirection.md), which allows commands to easily read from and write to the system clipboard.
 
 ## Building
 
-Telepipe is built using Flatpak and targeting version 49 of the GNOME platform. With Flatpak installed and Flathub enabled as a source, ensure the platform and SDK are installed:
+Telepipe is built using Flatpak and targets version 49 of the GNOME platform. With Flatpak installed and Flathub enabled as a source, ensure the platform and SDK are installed to your system:
 
 ```sh
-flatpak install org.gnome.Platform//49 org.gnome.Sdk//49
+flatpak --user install org.gnome.Platform//49 org.gnome.Sdk//49
 ```
 
 To build and install Telepipe from source, use [Flatpak Builder](https://docs.flatpak.org/en/latest/flatpak-builder.html). Clone this repository, navigate to it in a command-line shell, then run:
@@ -26,7 +26,7 @@ To build and install Telepipe from source, use [Flatpak Builder](https://docs.fl
 flatpak-builder build ca.vtrlx.Telepipe.json --user --install --force-clean
 ```
 
-After installing, run Telepipe either from the app menu or using the command `flatpak run ca.vtrlx.Telepipe`.
+After installing, run Telepipe either from your system's app menu or using the command `flatpak run ca.vtrlx.Telepipe`.
 
 If you've made changes to Telepipe, it's advised to test them by building and installing under the development application ID in order to preserve the unmodified Telepipe.
 
@@ -47,8 +47,6 @@ More information—including examples—is available in the [documentation page]
 Detailed explanations and examples on the usage of prefixes can be found in the [documentation page](https://github.com/vtrlx/telepipe/blob/trunk/docs/Prefixes.md) for prefixes.
 
 **Output editing:** The command output section is a full text editor. This allows you to make notes, amend output for further execution, or quickly erase sections of command output which are no longer needed. Selections from the terminal output can even be dragged-and-dropped down into the command entry for use as parameters to subsequent commands.
-
-**Clear exit status:** Commands which exit with errors will have their exit status clearly noted after their output has finished displaying, eliminating the need to include it in one's shell prompt (which Telepipe does not have).
 
 **Visual command history:** Each of Telepipe's tabs keeps its own history, shown as a list from a menu button to the right of the command entry (visible only when there is a command history). From here, commands may be removed from history, or be copied back into the command entry to be rerun or amended.
 
