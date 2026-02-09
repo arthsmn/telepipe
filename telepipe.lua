@@ -171,9 +171,20 @@ local function mkdir(path)
 	file:make_directory_with_parents()
 end
 
+-- Returns a generator that iterates over all variable names in alphabetical order (as determined by Lua).
+local function varnames()
+	local names = {}
+	for name in pairs(envvars) do table.insert(names, name) end
+	table.sort(names)
+	return coroutine.wrap(function()
+		for _, name in ipairs(names) do coroutine.yield(name) end
+	end)
+end
+
 local function saveenv()
 	local env = ""
-	for name, value in pairs(envvars) do
+	for name in varnames() do
+		local value = envvars[name]
 		env = env .. ("%s=%s\n"):format(name, value)
 	end
 	-- This should be guaranteed to work, because of Flatpak.
