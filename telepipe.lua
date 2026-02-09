@@ -1006,15 +1006,14 @@ function runner:send(line)
 	if not self.subproc then return self:tryexec(line) end
 	local stdin = self.subproc:get_stdin_pipe()
 	if stdin:is_closed() or stdin:is_closing() then return end
-	stdin = Gio.DataOutputStream.new(stdin)
-	-- Print the user input before sending it, in case the program exits before the print is registered. Yes, this may matter.
-	self:print(line .. "\n")
+	line = line .. "\n"
+	-- Print the user input before sending it, in case the program exits before the print is registered. Otherwise, an error status message may appear before
+	self:print(line)
 	self:flush()
-	stdin:put_string(line .. "\n")
-	-- Make sure further output is prefixed with a line break.
-	if self.outputqueue:sub(1, 1) ~= "\n" then
-		self.outputqueue = "\n" .. self.outputqueue
-	end
+	Gio.Async.start(function()
+		stdin:async_write(line, #line)
+		stdin:async_flush()
+	end)() -- Call wrapped async context.
 end
 
 function runner:paste()
