@@ -1711,7 +1711,12 @@ function window:preferences()
 			valuerow:add_css_class "error"
 			isvalid = false
 		else
+			valuerow:remove_css_class "error"
+		end
+		-- Don't show error when both are empty.
+		if #namerow.text == 0 and #valuerow.text == 0 then
 			namerow:remove_css_class "error"
+			valuerow:remove_css_class "error"
 		end
 		addrow.sensitive = isvalid
 	end
@@ -1720,6 +1725,7 @@ function window:preferences()
 
 	local envaddgroup = Adw.PreferencesGroup {
 		title = _ "Set or Add Environment Variable",
+		description = _ "If the named environment variable exists, its value will be set to the given value. Otherwise, the variable is added to the list.",
 		namerow,
 		valuerow,
 		addrow,
