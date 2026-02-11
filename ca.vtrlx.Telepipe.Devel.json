@@ -9,18 +9,13 @@
 		"--share=ipc",
 		"--socket=fallback-x11",
 		"--socket=wayland",
-		"--filesystem=host",
-		"--filesystem=host-os",
-		"--filesystem=host-etc",
-		"--filesystem=home",
+		"--talk-name=org.freedesktop.Flatpak",
+		"--talk-name=org.freedesktop.FileManager1",
+		"--talk-name=org.gtk.vfs",
+		"--talk-name=org.gtk.vfs.*",
 		"--filesystem=xdg-run/gvfs",
 		"--filesystem=xdg-run/gvfsd",
-		"--persist=host",
-		"--persist=host-os",
-		"--persist=host-etc",
-		"--persist=home",
-		"--talk-name=org.gtk.vfs.*",
-		"--talk-name=org.freedesktop.Flatpak"
+		"--filesystem=host:ro"
 	],
 	"modules": [{
 		"name": "lua",
