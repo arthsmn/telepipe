@@ -106,12 +106,9 @@ end
 -- SECTION: GResources
 
 do -- Load and register GResource.
-	local resource, err = Gio.Resource.load "/app/data/telepipe.gresource"
-	if resource then
-		Gio.resources_register(resource)
-	else
-		print("Failed to load resource", err)
-	end
+	local resource = Gio.Resource.load "/app/data/telepipe.gresource"
+	assert(resource)
+	Gio.resources_register(resource)
 end -- Load and register GResource.
 
 -- SECTION: Important variables
@@ -291,7 +288,7 @@ local runner = lib.newclass(function(self, params)
 		oldupper = upper
 	end
 
-	-- Search stuff. Lots of stuff going on here.
+	-- Search
 	self.searchentry = Gtk.Text {
 		placeholder_text = _ "Find in output…",
 		hexpand = true,
@@ -394,7 +391,7 @@ local runner = lib.newclass(function(self, params)
 		on_clicked = function()
 			self:switchprefix ""
 			self:ensurenewlines()
-			self:putstring "prefix was cleared."
+			self:putstring "Prefix was cleared."
 			self:print "\n"
 			self:grab()
 		end,
@@ -608,11 +605,13 @@ function runner:chdir(path)
 	if self.subproc then return end
 	local dir = Gio.File.new_for_path(path)
 	if dir:query_file_type() ~= "DIRECTORY" then
-		self:print(("not a directory: %s\n"):format(path))
+		self:ensurenewlines(1)
+		self:putstring((_ "Not a directory: %s\n"):format(path))
+		self:print("\n")
 	else
 		self.pwd = dir:get_path()
 		self:ensurenewlines(1)
-		local message = _ "new working directory →	%s\n"
+		local message = _ "New working directory →	%s\n"
 		self:print(message:format(self:getpwdlabel()))
 	end
 	self:updatetitle()
@@ -709,10 +708,12 @@ function runner:copy()
 		local clipboard = Gdk.Display.get_default():get_clipboard()
 		clipboard:set(GObject.Value(GObject.Type.STRING, self.copyqueue))
 		self:ensurenewlines(1)
-		self:print(_ "copied output to clipboard.\n")
+		self:putstring(_ "Copied output to clipboard.")
+		self:print "\n"
 	else
 		self:ensurenewlines(1)
-		self:print(_ "nothing to copy; clipboard has not been modified.")
+		self:putstring(_ "Nothing to copy; Clipboard has not been modified.")
+		self:print "\n"
 	end
 	self.copyqueue = nil
 end
@@ -744,10 +745,12 @@ function runner:waitend(async)
 		local status = math.ceil(self.subproc:get_status() / 256)
 		if self.forcedexit then
 			self:ensurenewlines(1)
-			self:print(_ "command was stopped")
+			self:putstring(_ "Command was stopped.")
+			self:print "\n"
 		elseif status ~= 0 then
 			self:ensurenewlines(1)
-			self:print((_ "exited with status code %d\n"):format(status))
+			self:putstring((_ "Exited with status code %d."):format(status))
+			self:print "\n"
 		end
 		self:finish()
 	end)() -- Call wrapped async context.
@@ -814,7 +817,7 @@ function runner:setupitem(listitem)
 	-- It is normally a better idea to bind signal handlers in the ::bind signal, after an item is bound. However, LuaGObject kind of makes it a bit of a nightmare to unbind signals. Someone should fix that.
 	local transferbutton = Gtk.Button {
 		icon_name = "tp-transfer-symbolic",
-		tooltip_text = _ "Copy command to command entry",
+		tooltip_text = _ "Copy to command entry",
 		valign = "CENTER",
 		on_clicked = function()
 			local command = listitem.item.string
@@ -946,13 +949,13 @@ function runner:exec(command)
 	self.allowsever = not dopipeout
 	if dopipein then
 		self.entry.sensitive = false
-		self:putstring "pasting to "
+		self:putstring "Pasting to "
 	elseif not dobackground then
 		self.entry.placeholder_text = _ "Send to running command…"
 		self.sendbutton.tooltip_text = _ "Send to running command"
 	end
 	if dobackground then
-		self:putstring("spawning ⇒	" .. command)
+		self:putstring(_ "Spawning ⇒	" .. command)
 	else
 		self:putstring("⇒	" .. command)
 	end
@@ -1220,13 +1223,13 @@ Telepipe is a command-line shell. Run command-line applications as you would in 
 
 Shell commands may begin with a special control character to modify their behaviour. These are,
 • &command
-	Quietly runs "command" in the background, without input or output. Applications started this way will persist after Telepipe is closed.
+	Quietly runs "command" in the background, without input or output.
 • >command
 	Paste's the clipboard's contents into "command" as input.
 • <command
 	Copy the output of "command" into the clipboard once it finishes.
 • |command
-	Combines the < and > control characters, allowing "command" to transform the clipboard's contents.
+	Pastes the clipboards contents into "command", and copies the output of "command" back into the clipboard, allowing "command" to transform the clipboard's contents.
 
 Telepipe can be controlled through certain built-in commands. These are,
 • help
@@ -1235,6 +1238,7 @@ Telepipe can be controlled through certain built-in commands. These are,
 	Closes the current tab. If no tabs remain, closes the current window.
 • cd [directory]
 	Changes the current working directory to the given path. If no path is given, changes the current working directory to the home directory.
+	Spaces and special characters in the given parameter will be interpreted verbatim—quotes and escape characters are not needed for the cd command.
 • prefix [command [args…]]
 	Sets this tab's prefix to the given command/arguments. If no command is given, deactivates the prefix instead. Whenever a prefix is set, it will be prepended to all subsequent shell commands—after any special prefix characters, if given.
 • setenv [name[=[value]]]
@@ -1247,7 +1251,7 @@ Telepipe can be controlled through certain built-in commands. These are,
 
 Telepipe's built-in commands are not considered shell commands, and are thus unaffected by special control characters or prefixes.
 
-THIS SOFTWARE IS EXPERIMENTAL. Expected features may not exist or may be subject to change. Many command-line programs will behave unusually, though in some cases this may be remedied using certain parameters or flags. Programs requiring the terminal will not function at all, and may output odd-looking text—avoid using these applications in Telepipe.
+THIS SOFTWARE IS EXPERIMENTAL. Expected command-line features may not exist and existing features may be subject to change. Many command-line programs will behave unusually, though in most cases this can be remedied through certain flags. Programs requiring the terminal will not function at all, and may output odd-looking text—avoid using these applications in Telepipe.
 
 Visit Telepipe's code repository at https://github.com/vtrlx/telepipe/ for more information or to submit an issue.
 ]=])
@@ -1271,7 +1275,7 @@ function runner.builtin:clearenv()
 	for name in pairs(self.env) do table.insert(names, name) end
 	for _, name in ipairs(names) do self.env[name] = nil end
 	self:ensurenewlines(1)
-	self:putstring(_ "environment variables were cleared")
+	self:putstring(_ "Environment variables were cleared.")
 end
 
 function runner.builtin:exit()
@@ -1283,21 +1287,21 @@ function runner.builtin:exit()
 end
 
 function runner.builtin:prefix(prefix)
+	prefix = prefix or ""
 	if #self.prefix == 0 and #prefix == 0 then
 		self:ensurenewlines(1)
-		self:putstring "no prefix given."
+		self:putstring "No prefix given."
 		self:print "\n"
 		return
 	end
-	prefix = prefix or ""
 	prefix = prefix:gsub("^%s*", ""):gsub("%s*$", "")
 	self:switchprefix(prefix, 1)
 	self:ensurenewlines(1)
 	if #self.prefix == 0 then
-		self:putstring "prefix was deactivated."
+		self:putstring(_ "Prefix was cleared.")
 		self.prefixbutton.visible = false
 	else
-		self:putstring("active prefix →	" .. self.prefix)
+		self:putstring(_ "Active prefix →	" .. self.prefix)
 	end
 	self:print "\n"
 end
@@ -1315,24 +1319,24 @@ function runner.builtin:setenv(param)
 	local value = param:match "=.*"
 	if not name then
 		self:ensurenewlines(1)
-		self:putstring(_ "given variable name is invalid")
+		self:putstring(_ "Given variable name is invalid.")
 	elseif not value then
 		self:ensurenewlines(1)
 		value = self.env[name] or envvars[name]
 		if value then
 			self:putstring(name .. "=" .. value)
 		else
-			self:putstring((_ "variable %s is unset"):format(name))
+			self:putstring((_ "Variable %s is unset."):format(name))
 		end
 	elseif #value == 1 then
 		self.env[name] = nil
 		self:ensurenewlines(1)
-		self:putstring((_ "cleared variable %s"):format(name))
+		self:putstring((_ "Cleared variable %s."):format(name))
 	else
 		value = value:sub(2)
 		self.env[name] = value
 		self:ensurenewlines(1)
-		self:putstring((_ "set variable %s to %q"):format(name, value))
+		self:putstring((_ "Set variable %s to %q."):format(name, value))
 	end
 end
 
@@ -1589,7 +1593,7 @@ window = lib.newclass(function(self)
 		if not r then return end
 		r:sever()
 		r:ensurenewlines(1)
-		r:putstring(_ "command was sent to the background.")
+		r:putstring(_ "Command was sent to the background.")
 		r:print "\n"
 	end)
 
