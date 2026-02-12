@@ -88,25 +88,19 @@ local accels = {
 	["win.new-tab"] = { "<Ctrl>T" },
 	["win.close-tab"] = { "<Ctrl>W" },
 	["win.new-win"] = { "<Ctrl>N" },
-	["win.open-file"] = { "<Ctrl>O" },
+	["win.enter-file-path"] = { "<Ctrl>O" },
+	["win.chdir"] = { "<Ctrl>J" },
 	["win.open-folder"] = { "<Ctrl>D" },
 	["win.search"] = { "<Ctrl>F" },
 	["win.signal-kill"] = { "<Ctrl><Alt>C" },
 	["win.signal-endinput"] = { "<Ctrl><Alt>D" },
 	["win.signal-background"] = { "<Ctrl><Alt>Z" },
+	["win.preferences"] = { "<Ctrl>comma" },
 	["win.shortcuts"] = { "<Ctrl><Shift>question" },
 	["win.about"] = { "F1" },
 }
 for k, v in pairs(accels) do
 	app:set_accels_for_action(k, v)
-end
-
-function lib.addnewaction(map, name, cb)
-	local action = Gio.SimpleAction.new(name)
-	action.enabled = true
-	action.on_activate = cb
-	map:add_action(action)
-	return action
 end
 
 -- SECTION: GResources
@@ -379,11 +373,9 @@ local runner = lib.newclass(function(self, params)
 	}
 	self.searchbar:connect_entry(self.searchentry)
 	self.chdirbutton = Gtk.Button {
+		action_name = "win.chdir",
 		icon_name = "tp-folder-symbolic",
 		tooltip_text = _ "Select new working directory…",
-		on_clicked = function()
-			self:trychdir()
-		end,
 	}
 	local menupopover = Gtk.PopoverMenu.new_from_model(runnermenu)
 	menupopover.halign = "START"
@@ -454,6 +446,7 @@ local runner = lib.newclass(function(self, params)
 	}
 	self.clearbutton = Gtk.Button {
 		icon_name = "tp-clear-symbolic",
+		margin_start = 12,
 		css_name = "image",
 		can_focus = false,
 		visible = false,
@@ -597,6 +590,7 @@ end
 
 function runner:trychdir()
 	local filedialog = Gtk.FileDialog {
+		title = _ "Change Directory",
 		initial_folder = Gio.File.new_for_path(self.pwd)
 	}
 	Gio.Async.start(function()
@@ -693,14 +687,17 @@ function runner:ensurenewlines(n)
 end
 
 function runner:handlepipe(pipe, callback, copyafter)
+	local subproc = self.subproc
 	Gio.Async.start(function()
 		repeat
 			-- This is technically a broken implementation. Telepipe uses UTF-8 to encode text, so the last byte(s) of the returned array may be an incomplete code point. In practice, this doesn't matter as the next read happens nearly-instantly because this async context has maximum io_priority and so the broken code point is fixed in the next write.
 			local bytes = pipe:async_read_bytes(4096)
-			if not bytes.data or #bytes.data == 0 then break end
-			callback(bytes.data)
-		until false
-		pipe:async_close()
+			if subproc == self.subproc and #bytes.data > 0 then
+				callback(bytes.data)
+			else
+				pipe:async_close()
+			end
+		until pipe:is_closed()
 		if copyafter then self:copy() end
 	end)() -- Call wrapped async context.
 end
@@ -724,6 +721,7 @@ function runner:finish()
 	self.forcedexit = nil
 	self.commandname = nil
 	self.subproc = nil
+	self.allowsever = false
 	self.chdirbutton.visible = true
 	self.prefixbutton.visible = #self.prefix > 0
 	self.menubutton.visible = false
@@ -738,9 +736,9 @@ function runner:finish()
 end
 
 function runner:waitend(async)
-	if not self.subproc then return end
+	if not self.subproc then return self:finish() end
+	local subproc = self.subproc
 	Gio.Async.start(function()
-		local subproc = self.subproc
 		self.subproc:async_wait()
 		if self.subproc ~= subproc then return end
 		local status = math.ceil(self.subproc:get_status() / 256)
@@ -945,6 +943,7 @@ function runner:exec(command)
 	local dopipein = prefix == ">" or prefix == "|"
 	local dopipeout = prefix == "<" or prefix == "|"
 	local dobackground = prefix == "&"
+	self.allowsever = not dopipeout
 	if dopipein then
 		self.entry.sensitive = false
 		self:putstring "pasting to "
@@ -1005,7 +1004,7 @@ function runner:exec(command)
 end
 
 function runner:sever()
-	if not self.subproc then return end
+	if not self.subproc or not self.allowsever then return false end
 	self:close "stdin"
 	self:close "stdout"
 	self:close "stderr"
@@ -1033,28 +1032,29 @@ function runner:send(line)
 end
 
 function runner:paste()
-	assert(self.subproc)
 	Gio.Async.start(function()
+		local stdin = self.subproc:get_stdin_pipe()
+		if stdin:is_closed() then return end
 		local clipboard = Gdk.Display.get_default():get_clipboard()
 		local inputtext = clipboard:async_read_text()
 		if not inputtext or #inputtext < 1 then return end
-		self.entry.sensitive = false
-		local stdin = self.subproc:get_stdin_pipe()
-		stdin = Gio.DataOutputStream.new(stdin)
-		stdin:put_string(inputtext)
+		stdin:async_write(inputtext, #inputtext)
 		stdin:async_flush()
 		stdin:async_close()
 	end)() -- Call wrapped async context.
 end
 
-function runner:close(pipe)
+function runner:close(pipename)
+	assert(pipename)
 	if not self.subproc then return end
-	if not pipe then pipe = "stdin" end
+	-- Keep the subproc active in-memory, at least until the closure ends.
+	local subproc = self.subproc
+	if not pipename then pipename = "stdin" end
 	Gio.Async.start(function()
-		local pipefunc = "get_" .. pipe .. "_pipe"
-		local pipe = self.subproc[pipefunc](self.subproc)
-		if not pipe or pipe:is_closed() or pipe:is_closing() then return end
-		if pipe == "stdin" then
+		local pipefunc = "get_" .. pipename .. "_pipe"
+		local pipe = subproc[pipefunc](subproc)
+		if not pipe or pipe:is_closed() then return end
+		if pipename == "stdin" then
 			self.entry.sensitive = false
 			self.sendbutton.sensitive = false
 		end
@@ -1353,6 +1353,7 @@ local function shortcuts(parent)
 			title = "Telepipe Window",
 			cut(_ "New Tab", "win.new-tab"),
 			cut(_ "New Window", "win.new-win"),
+			cut(_ "Open Preferences Dialog", "win.preferences"),
 			cut(_ "Show Keyboard Shortcuts", "win.shortcuts"),
 		},
 		Adw.ShortcutsSection {
@@ -1363,7 +1364,8 @@ local function shortcuts(parent)
 			cut(_ "Close Command Input", "win.signal-endinput"),
 			cut(_ "Quietly Send to Background", "win.signal-background"),
 			cut(_ "Focus Command Entry", "win.focus-cmdbar"),
-			cut(_ "Enter File Path in Entry", "win.open-file"),
+			cut(_ "Change Working Directory", "win.chdir"),
+			cut(_ "Enter File Path in Entry", "win.enter-file-path"),
 			cut(_ "Close Current Tab", "win.close-tab"),
 		},
 	}
@@ -1561,7 +1563,6 @@ window = lib.newclass(function(self)
 			dlg:choose(self.win)
 			return true
 		else
-			windows[self.win] = nil
 			-- Explicitly close each runner page to free their resources. Cleaner than hooking into e.g. __gc.
 			for i = 1, n_pages do
 				local page = self.tabview:get_nth_page(n_pages - i)
@@ -1571,19 +1572,19 @@ window = lib.newclass(function(self)
 		end
 	end
 
-	lib.addnewaction(self.win, "signal-kill", function()
+	self:addnewaction("signal-kill", function()
 		local r = get_focused_runner()
 		if not r then return end
 		r:kill()
 	end)
 
-	lib.addnewaction(self.win, "signal-endinput", function()
+	self:addnewaction("signal-endinput", function()
 		local r = get_focused_runner()
 		if not r then return end
 		r:close()
 	end)
 
-	lib.addnewaction(self.win, "signal-background", function()
+	self:addnewaction("signal-background", function()
 		local r = get_focused_runner()
 		if not r then return end
 		r:sever()
@@ -1592,56 +1593,62 @@ window = lib.newclass(function(self)
 		r:print "\n"
 	end)
 
-	lib.addnewaction(self.win, "focus-cmdbar", function()
+	self:addnewaction("focus-cmdbar", function()
 		local r = get_focused_runner()
 		if not r then return end
 		r:grab()
 	end)
 
-	self.search = lib.addnewaction(self.win, "search", function()
+	self.search = self:addnewaction("search", function()
 		local r = get_focused_runner()
 		if not r then return end
 		r:beginsearch()
 	end)
 	self.search.enabled = false
 
-	self.showfolder = lib.addnewaction(self.win, "open-folder", function()
+	self.showfolder = self:addnewaction("open-folder", function()
 		local r = get_focused_runner()
 		if not r then return end
 		r:showfolder()
 	end)
 	self.showfolder.enabled = false
 
-	lib.addnewaction(self.win, "open-file", function()
+	self:addnewaction("enter-file-path", function()
 		local r = get_focused_runner()
 		if not r then return end
 		r:selectfiles()
 	end)
 
-	lib.addnewaction(self.win, "new-tab", function()
+	self:addnewaction("chdir", function()
+		local r = get_focused_runner()
+		if not r then return end
+		r:trychdir()
+	end)
+
+	self:addnewaction("new-tab", function()
 		self:newtab()
 	end)
 
-	lib.addnewaction(self.win, "new-win", function()
+	self:addnewaction("new-win", function()
 		local win = window()
 		win:newtab()
 	end)
 
-	lib.addnewaction(self.win, "close-tab", function()
+	self:addnewaction("close-tab", function()
 		local page = self.tabview.selected_page
 		if not page then return end
 		self.tabview:close_page(page)
 	end)
 
-	lib.addnewaction(self.win, "preferences", function()
+	self:addnewaction("preferences", function()
 		self:preferences()
 	end)
 
-	lib.addnewaction(self.win, "shortcuts", function()
+	self:addnewaction("shortcuts", function()
 		shortcuts(self.win)
 	end)
 
-	lib.addnewaction(self.win, "about", function()
+	self:addnewaction("about", function()
 		about(self.win)
 	end)
 
@@ -1651,6 +1658,14 @@ window = lib.newclass(function(self)
 	windows[self.win] = self
 	self.win:present()
 end)
+
+function window:addnewaction(name, cb)
+	local action = Gio.SimpleAction.new(name)
+	action.enabled = true
+	action.on_activate = cb
+	self.win:add_action(action)
+	return action
+end
 
 function window:newtab()
 	local params = {}
@@ -1782,7 +1797,7 @@ function app:on_startup()
 	win:newtab()
 	local r = get_focused_runner()
 	r:print(_ [[
-Welcome to Telepipe. Type "help" in the command entry below (without quotation marks) then press the Enter key for more information on using this program.
+Welcome to Telepipe. Type "help" in the command entry below (without quotation marks) then press the Enter key for more information on using this application.
 ]])
 end
 
