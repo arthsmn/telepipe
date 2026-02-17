@@ -88,8 +88,10 @@ local accels = {
 	["win.new-tab"] = { "<Ctrl>T" },
 	["win.close-tab"] = { "<Ctrl>W" },
 	["win.new-win"] = { "<Ctrl>N" },
-	["win.enter-file-path"] = { "<Ctrl>O" },
-	["win.chdir"] = { "<Ctrl>J" },
+	["win.overview"] = { "<Ctrl><Shift>O" },
+	["win.enter-file-path"] = { "<Ctrl>J" },
+	["win.enter-folder-path"] = { "<Ctrl><Shift>J" },
+	["win.chdir"] = { "<Ctrl>M" },
 	["win.open-folder"] = { "<Ctrl>D" },
 	["win.search"] = { "<Ctrl>F" },
 	["win.signal-kill"] = { "<Ctrl><Alt>C" },
@@ -527,13 +529,18 @@ function runner:enterfile(path)
 	self.entry:select_region(position, position)
 end
 
-function runner:selectfiles()
+function runner:selectfiles(dofolders)
 	local pwd = Gio.File.new_for_path(self.pwd)
 	local filedialog = Gtk.FileDialog {
 		initial_folder = pwd,
 	}
 	Gio.Async.start(function()
-		local list = filedialog:async_open_multiple(app.active_window)
+		local list
+		if dofolders then
+			list = filedialog:async_select_multiple_folders(app.active_window)
+		else
+			list = filedialog:async_open_multiple(app.active_window)
+		end
 		if not list then return end
 		for i = 1, list.n_items do
 			-- Gio's API documents say that ListModel's :get_item() method is not available to language bindings and to use :get_object() instead. That's not the case for LuaGObject, which binds :get_item() and returns the object itself instead of a pointer.
@@ -1357,6 +1364,7 @@ local function shortcuts(parent)
 			title = "Telepipe Window",
 			cut(_ "New Tab", "win.new-tab"),
 			cut(_ "New Window", "win.new-win"),
+			cut(_ "Open Tab Switcher", "win.overview"),
 			cut(_ "Open Preferences Dialog", "win.preferences"),
 			cut(_ "Show Keyboard Shortcuts", "win.shortcuts"),
 		},
@@ -1370,6 +1378,7 @@ local function shortcuts(parent)
 			cut(_ "Focus Command Entry", "win.focus-cmdbar"),
 			cut(_ "Change Working Directory", "win.chdir"),
 			cut(_ "Enter File Path in Entry", "win.enter-file-path"),
+			cut(_ "Enter Folder Path in Entry", "win.enter-folder-path"),
 			cut(_ "Close Current Tab", "win.close-tab"),
 		},
 	}
@@ -1508,6 +1517,15 @@ window = lib.newclass(function(self)
 		view = self.tabview,
 	}
 
+	local tabbutton = Adw.TabButton {
+		view = self.tabview,
+		on_clicked = function()
+			local r = get_focused_runner()
+			if not r then return end
+			self:overview()
+		end,
+	}
+
 	self.toolbarview = Adw.ToolbarView {
 		content = self.tabview,
 		top_bar_style = "FLAT",
@@ -1515,7 +1533,7 @@ window = lib.newclass(function(self)
 			Adw.HeaderBar {
 				title_widget = self.windowtitle,
 				start_packs = { newbutton },
-				end_packs = { menubutton },
+				end_packs = { menubutton, tabbutton },
 			},
 			self.tabbar,
 		},
@@ -1623,6 +1641,12 @@ window = lib.newclass(function(self)
 		r:selectfiles()
 	end)
 
+	self:addnewaction("enter-folder-path", function()
+		local r = get_focused_runner()
+		if not r then return end
+		r:selectfiles(true)
+	end)
+
 	self:addnewaction("chdir", function()
 		local r = get_focused_runner()
 		if not r then return end
@@ -1642,6 +1666,12 @@ window = lib.newclass(function(self)
 		local page = self.tabview.selected_page
 		if not page then return end
 		self.tabview:close_page(page)
+	end)
+
+	self:addnewaction("overview", function()
+		local r = get_focused_runner()
+		if not r then return end
+		self:overview()
 	end)
 
 	self:addnewaction("preferences", function()
@@ -1774,6 +1804,138 @@ function window:preferences()
 		},
 	}
 	dialog:present(self.win)
+end
+
+-- Ideally, Adw.TabOverview would be used instead. Unfortunately, due to an issue with Gtk.TextView (see https://gitlab.gnome.org/GNOME/gtk/-/issues/7792), this is not possible. This implementation exists only as long as it is necessary.
+function window:overview()
+	local dialog
+
+	local tabs = {}
+	for i = 1, self.tabview.n_pages do
+		local index = i - 1
+		local page = self.tabview:get_nth_page(index)
+		local switchbutton = Gtk.Button {
+			extra_css_classes = { "flat" },
+			icon_name = "tp-rerun-symbolic",
+			tooltip_text = _ "Switch to this tab",
+			valign = "CENTER",
+			on_clicked = function()
+				self.tabview.selected_page = page
+				dialog:close()
+			end,
+		}
+		local r = runners[page.child]
+		local title, subtitle = r:gettitle()
+		table.insert(tabs, Adw.ActionRow {
+			title = title or subtitle,
+			subtitle = title and subtitle or "",
+			suffixes = { switchbutton },
+			selectable = false,
+			activatable = true,
+			on_activated = function()
+				self.tabview.selected_page = page
+				dialog:close()
+			end,
+		})
+	end
+
+	local listbox = Gtk.ListBox {
+		extra_css_classes = { "boxed-list" },
+		valign = "START",
+		margin_start = 24,
+		margin_end = 24,
+		margin_top = 24,
+		margin_bottom = 24,
+		table.unpack(tabs)
+	}
+
+	local scrolled = Gtk.ScrolledWindow {
+		child = listbox,
+		hscrollbar_policy = "NEVER",
+		height_request = 300,
+	}
+
+	local entry = Gtk.Text {
+		extra_css_classes = { "numeric" },
+		placeholder_text = _ "Search open tabs…",
+		hexpand = true,
+		on_changed = function()
+			listbox:invalidate_filter()
+		end,
+	}
+	local function match(row)
+		if #entry.text == 0 then return true end
+		local query = lib.fmtdir(entry.text)
+		local titlefound = row.title:find(query, 1, true) and true
+		local subtitlefound = row.subtitle:find(query, 1, true) and true
+		return titlefound or subtitlefound
+	end
+	listbox:set_filter_func(match)
+	function entry.on_activate()
+		if #entry.text == 0 then return end
+		local last
+		for i = 1, self.tabview.n_pages do
+			index = i - 1
+			local page = self.tabview:get_nth_page(index)
+			local row = listbox:get_row_at_index(index)
+			local found = match(row)
+			if found and last then
+				return
+			elseif found then
+				last = index
+			end
+		end
+		self.tabview.selected_page = self.tabview:get_nth_page(last)
+		dialog:close()
+	end
+
+	local clearbutton = Gtk.Button {
+		css_name = "image",
+		icon_name = "tp-clear-symbolic",
+		margin_start = 12,
+		visible = false,
+		on_clicked = function()
+			entry.text = ""
+			entry:grab_focus()
+		end,
+	}
+
+	local searchbox = Gtk.Box {
+		css_name = "entry",
+		orientation = "HORIZONTAL",
+		margin_start = 30,
+		margin_end = 30,
+		Gtk.Image {
+			extra_css_classes = { "nohover" },
+			icon_name = "tp-search-symbolic",
+		},
+		entry,
+		clearbutton,
+	}
+
+	local searchbar = Gtk.SearchBar {
+		child = searchbox,
+		search_mode_enabled = true,
+		show_close_button = false
+	}
+	searchbar:connect_entry(entry)
+
+	local toolbarview = Adw.ToolbarView {
+		content = scrolled,
+		top_bar_style = "RAISED_BORDER",
+		top_bars = {
+			Adw.HeaderBar(),
+			searchbar,
+		},
+	}
+
+	dialog = Adw.Dialog {
+		child = toolbarview,
+		title = _ "Search Tabs",
+		content_width = 400,
+		content_height = 400,
+	}
+	return dialog:present(self.win)
 end
 
 -- SECTION: App startup
