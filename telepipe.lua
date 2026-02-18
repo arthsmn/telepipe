@@ -1397,7 +1397,9 @@ local function about(parent)
 		website = "https://www.vtrlx.ca/apps/telepipe/",
 	}
 
-	aboutdlg:add_link(_ "Contact the Developer", "mailto:victoria@vtrlx.ca?subject=Telepipe")
+	aboutdlg:add_link(_ "Contact the developer", "mailto:victoria@vtrlx.ca?subject=Telepipe")
+	aboutdlg:add_link(_ "Contribute a translation", "https://github.com/vtrlx/telepipe?tab=readme-ov-file#localization")
+	aboutdlg:add_link(_ "Support this app", "https://liberapay.com/vtrlx/")
 
 	aboutdlg:present(parent)
 end
