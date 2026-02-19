@@ -1047,9 +1047,14 @@ function runner:send(line)
 	local stdin = self.subproc:get_stdin_pipe()
 	if stdin:is_closed() or stdin:is_closing() then return end
 	line = line .. "\n"
-	-- Print the user input before sending it, in case the program exits before the print is registered. Otherwise, an error status message may appear before
-	self:print(line)
-	self:flush()
+	-- Print the user input before sending it, in case the program exits before the print is registered. Otherwise, an error status message may appear before what the user sent.
+	if line:match "[^\n]" then
+		self:print(line)
+		self:flush()
+	else
+		-- If the user input only consisted of newlines, then print them immediately instead of queueing them for the next print.
+		self:putstring(line)
+	end
 	Gio.Async.start(function()
 		stdin:async_write(line, #line)
 		stdin:async_flush()
