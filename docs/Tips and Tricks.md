@@ -10,7 +10,7 @@ Because there have been decades of work put into making command-line programs wo
 
 ### Not a Terminal
 
-The single most important piece of advice is therefore to remember that **Telepipe is not a terminal**. It does not implement PTYs. It does not handle ioctls. It does not colorize or decorate text. It does not use monospace fonts. Telepipe is closer to being a command-line shell that is presented through a graphical interface instead of a terminal. This also means that keyboard shortcuts that seasoned terminal users would expect are absent—Ctrl+C will copy selected text instead of aborting the running program, and Ctrl+D will open the file manager in the current working directory instead of sending an end-of-transmission signal. Other shortcuts are provided for these functions instead.
+The single most important piece of advice is therefore to remember that **Telepipe is not a terminal**. It does not implement PTYs. It does not handle ioctls. It does not colorize or decorate text. It does not use monospace fonts. Telepipe is closer to being a command-line shell that is presented through a graphical interface than a terminal. This also means that keyboard shortcuts that seasoned terminal users would expect are absent—Ctrl+C will copy selected text instead of aborting the running program, and Ctrl+D will open the file manager in the current working directory instead of sending an end-of-transmission signal. Other shortcuts are provided for these functions instead.
 
 Under the hood, Telepipe executes each command using a new non-interactive instance of the user's configured shell, which means that shell builtin commands will usually fail silently without doing anything. Running `which <command>` will tell you if a command is an actual program or a builtin for your shell.
 
@@ -50,34 +50,9 @@ The following sections consist of advice for dealing with crucial programs which
 
 The program `clear` does not work in Telepipe, and Telepipe intentionally provides no alternative.
 
-The suggested method of completely clearing the command output view is to focus it, select all text (either by secondary-clicking and choosing "Select All", typing Ctrl+A, or using the select all button on a touchscreen cursor), then delete the selection.
+The suggested method of completely clearing the command output is to focus it, select all text (either by secondary-clicking and choosing "Select All", typing Ctrl+A, or using the select all button on a touchscreen cursor), then delete the selection.
 
-Telepipe omits a `clear` builtin in an effort to break users' preexisting habits of compulsively clearing terminal output. If the goal is to remove irrelevant command output from a session, Telepipe allows one to do exactly that without deleting everything else. One must simply select the region to delete as one normally would in a text editor, then delete it. This allows important text such as file names emitted by previous commands to be preserved without needing to constantly redo those commands to generate the same outputs.
-
-### ls
-
-GNU `ls` in works flawlessly in Telepipe, but it leaves something to be desired. As Telepipe lacks completions, filling in filenames can be somewhat cumbersome. The intended solution to this is to use programs like `ls` to list the filenames before dragging-and-dropping ones you want to work with back into the command entry. This only works for the current directory, as `ls` does not include relative paths when listing other directories. This can be easily remedied by using the `-d` flag, but it will only list the given path instead of the directory's children as would be expected from other invocations of `ls`. One would normally need to call `ls -d <directory>/*` to list files from other directories with full relative paths, which can be frustrating to remember.
-
-The following shell script resolves this by using a wildcard to `ls -d` if the given file is a directory, otherwise it calls `ls` as normal. It will also cause `ls` to output all file names by wrapping them in quotation marks. A good name to give this script is `dir`.
-
-```sh
-#!/usr/bin/env sh
-
-# Strip trailing slashes from directory name
-DIR=`echo $1 | sed "s;/*$;;"`
-
-if [ -z "$DIR" ]
-then
-	ls -Q
-elif [ -d "$DIR" ]
-then
-	ls -dQ "$DIR"/*
-else
-	ls -Q "$DIR"
-fi
-```
-
-An alternative solution is to use `ls` from the [Plan 9 Port](https://github.com/9fans/plan9port), which is well-behaved in Telepipe.
+Telepipe omits a `clear` builtin in an effort to break preexisting habits of compulsively clearing terminal output. If the goal is to remove irrelevant command output from a session, Telepipe allows one to do exactly that without deleting everything else; One must simply select the region to delete as one normally would in a text editor, then delete it. This allows important text such as file names emitted by previous commands to be preserved without needing to constantly redo those commands to generate the same outputs.
 
 ### ssh
 
@@ -93,7 +68,7 @@ If it's necessary to use software only available on a remote system, it is still
 
 Normally, `sudo` requires a terminal to enter a password, making it unusable from Telepipe.
 
-The recommended solution is to run `pkexec` from the [Polkit](https://github.com/polkit-org/polkit) package. This prompts the password using a GUI popup. Simply call `pkexec` instead of `sudo` when attempting to run a command with elevated privileges. `pkexec` differs from `sudo` in a few way; First, it will not stay in the current directory unless the `--keep-cwd` flag is passed to `pkexec` and second is that `pkexec` does not cache credentials, meaning that authentication is required on each invocation. Consider using an alternate method of authentication such as a fingerprint reader or a PKI token.
+The recommended solution is to run `pkexec` from the [Polkit](https://github.com/polkit-org/polkit) package. This prompts the password using a GUI popup. Simply call `pkexec` instead of `sudo` when attempting to run a command with elevated privileges. `pkexec` differs from `sudo` in a few ways; First, it will not stay in the current directory unless the `--keep-cwd` flag is explicitly passed, and second is that `pkexec` does not cache credentials, meaning that authentication is required on each invocation. Consider using an alternate method of authentication such as a fingerprint reader or a PKI token if you need to run multiple commands in a row using `pkexec`.
 
 If Polkit is not an option, another solution is to use `ssh-askpass`. Set the variable `SUDO_ASKPASS=/path/to/askpass` before calling `sudo`, and it should prompt for the password (you may also need to pass the `-A` flag). To make this change permanent, set the `askpass` option in `/etc/sudo.conf`,
 
