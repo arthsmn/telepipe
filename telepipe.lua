@@ -1620,7 +1620,7 @@ window = lib.newclass(function(self)
 	self:addnewaction("signal-endinput", function()
 		local r = get_focused_runner()
 		if not r then return end
-		r:close()
+		r:close "stdin"
 	end)
 
 	self:addnewaction("signal-background", function()
