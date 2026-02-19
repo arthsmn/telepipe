@@ -279,12 +279,24 @@ local runner = lib.newclass(function(self, params)
 		child = self.textview,
 		hscrollbar_policy = "NEVER",
 	}
-	local oldupper = self.scrolledwin.vadjustment.upper
-	function self.scrolledwin.vadjustment.on_notify.upper()
-		local upper = self.scrolledwin.vadjustment.upper
-		if oldupper < upper then
-			GLib.timeout_add(20, GLib.PRIORITY_DEFAULT, function()
-				self.scrolledwin.vadjustment.value = upper
+	local vadjust = self.scrolledwin.vadjustment
+	local oldupper = vadjust.upper
+	self.doscroll = true
+	function vadjust.on_value_changed()
+		-- If the scroll bar is at the bottom of the command output
+		if vadjust.value == vadjust.upper - vadjust.page_size then
+			self.doscroll = true
+		else
+			self.doscroll = false
+		end
+	end
+	function vadjust.on_notify.upper()
+		local upper = vadjust.upper
+		if self.doscroll then
+			GLib.timeout_add(20, 5, function()
+				vadjust.value = vadjust.upper - vadjust.page_size
+				-- It's very possible that self.doscroll
+				-- self.doscroll = true
 			end)
 		end
 		oldupper = upper
@@ -1028,6 +1040,9 @@ function runner:kill()
 end
 
 function runner:send(line)
+	-- Scroll to the bottom (and reenable automatic scrolling) before printing anything. No matter what is done here, there should always be *something* printed here, so this is not a loss.
+	local vadjust = self.scrolledwin.vadjustment
+	vadjust.value = vadjust.upper - vadjust.page_size
 	if not self.subproc then return self:tryexec(line) end
 	local stdin = self.subproc:get_stdin_pipe()
 	if stdin:is_closed() or stdin:is_closing() then return end
