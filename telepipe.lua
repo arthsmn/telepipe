@@ -283,8 +283,8 @@ local runner = lib.newclass(function(self, params)
 	local oldupper = vadjust.upper
 	self.doscroll = true
 	function vadjust.on_value_changed()
-		-- If the scroll bar is at the bottom of the command output
-		if vadjust.value == vadjust.upper - vadjust.page_size then
+		-- If the scroll bar is at the bottom of the command output, further output should cause the scroll bar to continue scrolling down.
+		if vadjust.value >= vadjust.upper - vadjust.page_size then
 			self.doscroll = true
 		else
 			self.doscroll = false
@@ -293,10 +293,13 @@ local runner = lib.newclass(function(self, params)
 	function vadjust.on_notify.upper()
 		local upper = vadjust.upper
 		if self.doscroll then
-			GLib.timeout_add(20, 5, function()
-				vadjust.value = vadjust.upper - vadjust.page_size
-				-- It's very possible that self.doscroll
-				-- self.doscroll = true
+			-- This is a best-guess attempt at determining a good delay for actually scrolling the window down after its upper bound has changed, because the scroll window takes some time to adjust its content size.
+			local factor = math.floor((vadjust.upper / vadjust.page_size) / 5)
+			local timeout = math.max(5, math.min(100, factor))
+			GLib.timeout_add(20, timeout, function()
+				vadjust.value = math.maxinteger
+				-- It's very possible that self.doscroll might not get re-enabled due to recalculations of the scrolled window's size, so because this *should* result in scrolling to the bottom, just forcibly enable scrolling now to ensure that it continues after a later resize.
+				self.doscroll = true
 			end)
 		end
 		oldupper = upper
