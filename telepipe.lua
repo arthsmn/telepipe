@@ -1070,8 +1070,13 @@ function runner:paste()
 		if stdin:is_closed() then return end
 		local clipboard = Gdk.Display.get_default():get_clipboard()
 		local inputtext = clipboard:async_read_text()
-		if not inputtext or #inputtext < 1 then return end
-		stdin:async_write(inputtext, #inputtext)
+		if not inputtext or #inputtext < 1 then
+			self:ensurenewlines(1)
+			self:putstring(_ "Nothing to paste.")
+			self:print "\n"
+		else
+			stdin:async_write(inputtext, #inputtext)
+		end
 		stdin:async_flush()
 		stdin:async_close()
 	end)() -- Call wrapped async context.
