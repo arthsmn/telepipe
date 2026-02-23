@@ -712,18 +712,18 @@ function runner:ensurenewlines(n)
 end
 
 function runner:handlepipe(pipe, callback, copyafter)
-	local subproc = self.subproc
 	Gio.Async.start(function()
 		repeat
-			-- This is technically a broken implementation. Telepipe uses UTF-8 to encode text, so the last byte(s) of the returned array may be an incomplete code point. In practice, this doesn't matter as the next read happens nearly-instantly because this async context has maximum io_priority and so the broken code point is fixed in the next write.
+			-- This is technically a broken implementation. Telepipe uses UTF-8 to encode text, so the last byte(s) of the returned array may be an incomplete code point. In practice, this doesn't really matter as the next read happens nearly-instantly because this async context has maximum io_priority and so the broken code point is fixed in the next write.
 			local bytes = pipe:async_read_bytes(4096)
-			if subproc == self.subproc and #bytes.data > 0 then
+			if not self.closepipes and #bytes.data > 0 then
 				callback(bytes.data)
 			else
 				pipe:async_close()
 			end
 		until pipe:is_closed()
-		if copyafter then self:copy() end
+		-- Only copy to the clipboard if the underlying process wasn't severed from the application.
+		if copyafter and not self.closepipes then self:copy() end
 	end)() -- Call wrapped async context.
 end
 
@@ -747,6 +747,7 @@ end
 function runner:finish()
 	self.forcedexit = nil
 	self.commandname = nil
+	self.closepipes = false
 	self.subproc = nil
 	self.allowsever = false
 	self.chdirbutton.visible = true
@@ -1034,6 +1035,8 @@ end
 
 function runner:sever()
 	if not self.subproc or not self.allowsever then return false end
+	-- Tell the output pipe handlers to abort.
+	self.closepipes = true
 	self:close "stdin"
 	self:close "stdout"
 	self:close "stderr"
