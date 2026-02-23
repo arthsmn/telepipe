@@ -301,6 +301,9 @@ local runner = lib.newclass(function(self, params)
 				-- It's very possible that self.doscroll might not get re-enabled due to recalculations of the scrolled window's size, so because this *should* result in scrolling to the bottom, just forcibly enable scrolling now to ensure that it continues after a later resize.
 				self.doscroll = true
 			end)
+		elseif vadjust.upper == vadjust.page_size then
+			-- If the output was cleared after previously having been scrolled to the top, the value hasn't changed but the bottom has and so automatic scrolling should be reenabled.
+			self.doscroll = true
 		end
 		oldupper = upper
 	end
