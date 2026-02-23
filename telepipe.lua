@@ -565,12 +565,15 @@ function runner:selectfiles(dofolders)
 			local file = list:get_item(i - 1)
 			local pwd = Gio.File.new_for_path(self.pwd)
 			local path = pwd:get_relative_path(file)
-			if not path then
+			if not path and not dofolders then
 				-- The ability to query a file's host path is a little dicey in the case of symlinks to files. What works better is querying the parent's path and then just tacking the file's basename at the end.
 				local dir = file:get_parent()
 				local fileinfo = dir:query_info "xattr::document-portal.host-path"
 				path = fileinfo:get_attribute_string "xattr::document-portal.host-path"
 				path = path .. "/" .. file:get_basename()
+			elseif not path then
+				local fileinfo = file:query_info "xattr::document-portal.host-path"
+				path = fileinfo:get_attribute_string "xattr::document-portal.host-path"
 			end
 			self:enterfile(path)
 		end
