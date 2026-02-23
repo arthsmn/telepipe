@@ -1929,6 +1929,7 @@ function window:overview()
 				last = index
 			end
 		end
+		if not last then return end
 		self.tabview.selected_page = self.tabview:get_nth_page(last)
 		dialog:close()
 	end
