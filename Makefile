@@ -1,5 +1,5 @@
 PACKAGE = ca.vtrlx.Telepipe
-VERSION = alpha
+VERSION = 1.0
 
 APPID = $(PACKAGE)
 ifdef DEVEL
