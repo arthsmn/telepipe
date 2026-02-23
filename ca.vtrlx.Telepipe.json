@@ -15,7 +15,7 @@
 		"--talk-name=org.gtk.vfs.*",
 		"--filesystem=xdg-run/gvfs",
 		"--filesystem=xdg-run/gvfsd",
-		"--filesystem=host:ro"
+		"--filesystem=host"
 	],
 	"modules": [{
 		"name": "lua",

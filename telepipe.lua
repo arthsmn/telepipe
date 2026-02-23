@@ -560,11 +560,15 @@ function runner:selectfiles(dofolders)
 		for i = 1, list.n_items do
 			-- Gio's API documents say that ListModel's :get_item() method is not available to language bindings and to use :get_object() instead. That's not the case for LuaGObject, which binds :get_item() and returns the object itself instead of a pointer.
 			local file = list:get_item(i - 1)
-			-- The ability to query a file's host path is a little dicey in the case of symlinks to files. What works better is querying the parent's path and then just tacking the file's basename at the end.
-			local dir = file:get_parent()
-			local fileinfo = dir:query_info "xattr::document-portal.host-path"
-			local path = fileinfo:get_attribute_string "xattr::document-portal.host-path"
-			path = path .. "/" .. file:get_basename()
+			local pwd = Gio.File.new_for_path(self.pwd)
+			local path = pwd:get_relative_path(file)
+			if not path then
+				-- The ability to query a file's host path is a little dicey in the case of symlinks to files. What works better is querying the parent's path and then just tacking the file's basename at the end.
+				local dir = file:get_parent()
+				local fileinfo = dir:query_info "xattr::document-portal.host-path"
+				path = fileinfo:get_attribute_string "xattr::document-portal.host-path"
+				path = path .. "/" .. file:get_basename()
+			end
 			self:enterfile(path)
 		end
 	end)() --Call wrapped async context.
