@@ -1010,6 +1010,13 @@ function runner:exec(command)
 	local launcher = Gio.SubprocessLauncher.new(launcherargs)
 	launcher:set_cwd(self.pwd)
 	self.subproc = launcher:spawnv(self:getexecargs(command))
+	if not self.subproc then
+		self:ensurenewlines(1)
+		self:putstring(_ "Failed to run command.")
+		self:print "\n"
+		self:finish()
+		return
+	end
 	if dobackground then
 		self:sever()
 		return
