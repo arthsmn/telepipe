@@ -626,6 +626,7 @@ function runner:trychdir()
 		self:ensurenewlines()
 		local fileinfo = dir:async_query_info "xattr::document-portal.host-path"
 		local path = fileinfo:get_attribute_string "xattr::document-portal.host-path"
+		if not path then path = dir:get_path() end
 		self:chdir(path)
 	end)() --Call wrapped async context.
 end
