@@ -44,6 +44,25 @@ function lib.isdir(path)
 	return lib.fileexists(path .. "/")
 end
 
+function lib.unflatpakize(file)
+	local path
+	local fileinfo = file:query_info "xattr::document-portal.host-path"
+	if fileinfo then
+		path = fileinfo:get_attribute_string "xattr::document-portal.host-path"
+	end
+	if not path then
+		path = file:get_path()
+	end
+	if path:match "^/run/host" then
+		path = path:gsub("^/run/host", "", 1)
+	end
+	return path
+end
+
+function lib.cancdto(path)
+	return path:match("^" .. os.getenv "HOME") or path:match "/run/user/%d+/gvfs"
+end
+
 -- Simple class implementation without inheritance.
 function lib.newclass(init)
 	local c = {}
@@ -568,12 +587,10 @@ function runner:selectfiles(dofolders)
 			if not path and not dofolders then
 				-- The ability to query a file's host path is a little dicey in the case of symlinks to files. What works better is querying the parent's path and then just tacking the file's basename at the end.
 				local dir = file:get_parent()
-				local fileinfo = dir:query_info "xattr::document-portal.host-path"
-				path = fileinfo:get_attribute_string "xattr::document-portal.host-path"
+				local path = lib.unflatpakize(dir)
 				path = path .. "/" .. file:get_basename()
 			elseif not path then
-				local fileinfo = file:query_info "xattr::document-portal.host-path"
-				path = fileinfo:get_attribute_string "xattr::document-portal.host-path"
+				path = lib.unflatpakize(file)
 			end
 			self:enterfile(path)
 		end
@@ -626,27 +643,18 @@ function runner:trychdir()
 		local dir = filedialog:async_select_folder(app.active_window)
 		if not dir then return end
 		-- guaranteed to be a dir, so there will be a message
-		self:ensurenewlines()
-		local fileinfo = dir:async_query_info "xattr::document-portal.host-path"
-		local path = fileinfo:get_attribute_string "xattr::document-portal.host-path"
-		if not path then path = dir:get_path() end
+		self:ensurenewlines(2)
+		local path = lib.unflatpakize(dir)
 		self:chdir(path)
 	end)() --Call wrapped async context.
 end
 
 function runner:chdir(path)
 	if self.subproc then return end
-	local dir = Gio.File.new_for_path(path)
-	if dir:query_file_type() ~= "DIRECTORY" then
-		self:ensurenewlines(1)
-		self:putstring((_ "Not a directory: %s\n"):format(path))
-		self:print("\n")
-	else
-		self.pwd = dir:get_path()
-		self:ensurenewlines(1)
-		local message = _ "New working directory →	%s\n"
-		self:print(message:format(self:getpwdlabel()))
-	end
+	self.pwd = path
+	self:ensurenewlines(1)
+	local message = _ "New working directory →	%s\n"
+	self:print(message:format(self:getpwdlabel()))
 	self:updatetitle()
 end
 
@@ -928,6 +936,7 @@ function runner:getexecargs(command)
 	local args = {
 		"flatpak-spawn",
 		"--host",
+		("--directory=%s"):format(self.pwd),
 		"--watch-bus",
 	}
 	-- Environment variables
@@ -1008,7 +1017,6 @@ function runner:exec(command)
 		launcherargs[3] = "STDERR_MERGE"
 	end
 	local launcher = Gio.SubprocessLauncher.new(launcherargs)
-	launcher:set_cwd(self.pwd)
 	self.subproc = launcher:spawnv(self:getexecargs(command))
 	if not self.subproc then
 		self:ensurenewlines(1)
@@ -1318,12 +1326,23 @@ function runner.builtin:cd(dir)
 	dir = lib.expanddir(dir)
 	local current = Gio.File.new_for_path(self.pwd)
 	local target = current:resolve_relative_path(dir)
-	if target then
+	if not lib.cancdto(target:get_path()) then
+		self:ensurenewlines(1)
+		local message = _ "Not in sandbox: %s. To change to a directory under this path, use the folder picker dialog."
+		self:putstring(message:format(target:get_path()))
+		self:print "\n"
+		return
+	end
+	if target:query_file_type() == "DIRECTORY" then
 		dir = target:get_path()
 		local pretty = lib.fmtdir(dir)
 		self:inserthistory("cd " .. pretty)
+		self:chdir(dir)
+	else
+		self:ensurenewlines(1)
+		self:putstring((_ "Not a directory: %s"):format(dir))
+		self:print "\n"
 	end
-	self:chdir(dir)
 end
 
 function runner.builtin:clearenv()
