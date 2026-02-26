@@ -59,8 +59,14 @@ function lib.unflatpakize(file)
 	return path
 end
 
+function lib.uriorhost(file)
+	local uri = file:get_uri()
+	if not uri:match "^file://" then return uri end
+	return lib.unflatpakize(file)
+end
+
 function lib.cancdto(path)
-	return path:match("^" .. os.getenv "HOME") or path:match "/run/user/%d+/gvfs"
+	return path:match("^" .. os.getenv "HOME") or path:match "^[a-z]+://"
 end
 
 -- Simple class implementation without inheritance.
@@ -255,7 +261,7 @@ runnermenu:append(_ "Send to Background", "win.signal-background")
 local runner = lib.newclass(function(self, params)
 	assert(params)
 	self.env = {}
-	self.pwd = params.pwd or os.getenv "HOME"
+	self.pwd = params.pwd or Gio.File.new_for_path(os.getenv "HOME")
 	self.outputqueue = ""
 	local factory = Gtk.SignalListItemFactory {
 		on_setup = function(_, ...) self:setupitem(...) end,
@@ -523,8 +529,8 @@ local runner = lib.newclass(function(self, params)
 	}
 	runners[self.toolbarview] = self
 
-	if self.pwd ~= os.getenv "HOME" then
-		self:inserthistory("cd " .. lib.fmtdir(self.pwd))
+	if self.pwd:get_path() ~= os.getenv "HOME" then
+		self:inserthistory("cd " .. self:getpwdlabel())
 	end
 	if #self.prefix > 0 then
 		self:inserthistory("prefix " .. self.prefix)
@@ -567,7 +573,7 @@ function runner:enterfile(path)
 end
 
 function runner:selectfiles(dofolders)
-	local pwd = Gio.File.new_for_path(self.pwd)
+	local pwd = Gio.File.new_for_path(lib.unflatpakize(self.pwd))
 	local filedialog = Gtk.FileDialog {
 		initial_folder = pwd,
 	}
@@ -582,7 +588,6 @@ function runner:selectfiles(dofolders)
 		for i = 1, list.n_items do
 			-- Gio's API documents say that ListModel's :get_item() method is not available to language bindings and to use :get_object() instead. That's not the case for LuaGObject, which binds :get_item() and returns the object itself instead of a pointer.
 			local file = list:get_item(i - 1)
-			local pwd = Gio.File.new_for_path(self.pwd)
 			local path = pwd:get_relative_path(file)
 			if not path and not dofolders then
 				-- The ability to query a file's host path is a little dicey in the case of symlinks to files. What works better is querying the parent's path and then just tacking the file's basename at the end.
@@ -598,7 +603,9 @@ function runner:selectfiles(dofolders)
 end
 
 function runner:getpwdlabel()
-	return lib.fmtdir(self.pwd)
+	local uri = self.pwd:get_uri()
+	if not uri:match "^file://" then return uri end
+	return lib.fmtdir(lib.unflatpakize(self.pwd))
 end
 
 function runner:getprefixlabel(short)
@@ -635,32 +642,34 @@ function runner:updatetitle()
 end
 
 function runner:trychdir()
+	local pwd = Gio.File.new_for_path(lib.unflatpakize(self.pwd))
 	local filedialog = Gtk.FileDialog {
 		title = _ "Change Directory",
-		initial_folder = Gio.File.new_for_path(self.pwd)
+		initial_folder = pwd,
 	}
 	Gio.Async.start(function()
 		local dir = filedialog:async_select_folder(app.active_window)
 		if not dir then return end
 		-- guaranteed to be a dir, so there will be a message
 		self:ensurenewlines(2)
-		local path = lib.unflatpakize(dir)
-		self:chdir(path)
+		self:chdir(dir)
 	end)() --Call wrapped async context.
 end
 
-function runner:chdir(path)
+function runner:chdir(gdir)
 	if self.subproc then return end
-	self.pwd = path
+	self.pwd = gdir
 	self:ensurenewlines(1)
 	local message = _ "New working directory →	%s\n"
 	self:print(message:format(self:getpwdlabel()))
+	if lib.cancdto(lib.uriorhost(self.pwd)) then
+		self:inserthistory("cd " .. self:getpwdlabel())
+	end
 	self:updatetitle()
 end
 
 function runner:showfolder()
-	local file = Gio.File.new_for_path(self.pwd)
-	local launcher = Gtk.FileLauncher.new(file)
+	local launcher = Gtk.FileLauncher.new(self.pwd)
 	Gio.Async.start(function()
 		launcher:async_launch()
 	end)() -- Call wrapped async context.
@@ -936,7 +945,7 @@ function runner:getexecargs(command)
 	local args = {
 		"flatpak-spawn",
 		"--host",
-		("--directory=%s"):format(self.pwd),
+		("--directory=%s"):format(lib.unflatpakize(self.pwd)),
 		"--watch-bus",
 	}
 	-- Environment variables
@@ -1324,23 +1333,27 @@ end
 function runner.builtin:cd(dir)
 	if not dir or #dir == 0 then dir = os.getenv "HOME" end
 	dir = lib.expanddir(dir)
-	local current = Gio.File.new_for_path(self.pwd)
-	local target = current:resolve_relative_path(dir)
-	if not lib.cancdto(target:get_path()) then
+	local target
+	if dir:match "^[a-z]+://" then
+		target = Gio.File.new_for_uri(dir)
+	elseif dir:match "^/" then
+		target = Gio.File.new_for_path(dir)
+	else
+		target = self.pwd:resolve_relative_path(dir)
+	end
+	local tpath = lib.uriorhost(target)
+	if not lib.cancdto(tpath) then
 		self:ensurenewlines(1)
 		local message = _ "Not in sandbox: %s. To change to a directory under this path, use the folder picker dialog."
-		self:putstring(message:format(target:get_path()))
+		self:putstring(message:format(tpath))
 		self:print "\n"
 		return
 	end
 	if target:query_file_type() == "DIRECTORY" then
-		dir = target:get_path()
-		local pretty = lib.fmtdir(dir)
-		self:inserthistory("cd " .. pretty)
-		self:chdir(dir)
+		self:chdir(target)
 	else
 		self:ensurenewlines(1)
-		self:putstring((_ "Not a directory: %s"):format(dir))
+		self:putstring((_ "Not a directory: %s"):format(tpath))
 		self:print "\n"
 	end
 end
