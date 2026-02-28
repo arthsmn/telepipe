@@ -7,7 +7,11 @@ CFLAGS += -DDEVEL
 APPID = $(PACKAGE).Devel
 endif
 
-PREFIX = /app
+ifdef FLATPAK
+CFLAGS += -DFLATPAK
+endif
+
+PREFIX ?= /usr/local
 
 CSRCS = $(wildcard *.c)
 LSRCS = $(wildcard *.lua)
@@ -23,7 +27,7 @@ MOFILES = \
 BIN = telepipe
 BYTECODE = $(patsubst %.lua, %.bytecode, $(LSRCS))
 LIBS = -llua -ldl -lm
-CFLAGS += $(LIBS) -Wl,-E -DPACKAGE="$(APPID)" -DVERSION=$(VERSION)
+CFLAGS += $(LIBS) -Wl,-E -DPACKAGE="$(APPID)" -DVERSION=$(VERSION) -DPREFIX=$(PREFIX)
 
 DESKTOP_FILE = $(APPID).desktop
 ICON = $(APPID).svg
@@ -35,7 +39,7 @@ endif
 all: $(BIN)
 
 $(BIN): $(CSRCS) $(BYTECODE)
-	cc -o $@ $(CSRCS) -L/app/lib $(CFLAGS)
+	cc -o $@ $(CSRCS) -L$(PREFIX)/lib $(CFLAGS)
 
 %.gresource: %.gresource.xml
 	glib-compile-resources --target=$@ --sourcedir=data $^

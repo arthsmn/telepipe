@@ -20,11 +20,23 @@ You should have received a copy of the GNU General Public License along with thi
 /* Environment variables passed from the Makefile, whose values are made into C strings. */
 #define APP_ID MSTR(PACKAGE)
 #define APP_VER MSTR(VERSION)
+#define INSTALL_PREFIX MSTR(PREFIX)
 
 static int
 get_is_devel_lua(lua_State *L)
 {
 #ifdef DEVEL
+	lua_pushboolean(L, 1);
+#else
+	lua_pushboolean(L, 0);
+#endif
+	return 1;
+}
+
+static int
+get_is_flatpak_lua(lua_State *L)
+{
+#ifdef FLATPAK
 	lua_pushboolean(L, 1);
 #else
 	lua_pushboolean(L, 0);
@@ -42,11 +54,14 @@ get_app_id_lua(lua_State *L)
 static int
 get_app_ver_lua(lua_State *L)
 {
-#ifdef VERSION
-	lua_pushstring(L, MSTR(VERSION));
-#else
-#error("VERSION macro is not defined!")
-#endif
+	lua_pushstring(L, APP_VER);
+	return 1;
+}
+
+static int
+get_install_prefix_lua(lua_State *L)
+{
+	lua_pushstring(L, INSTALL_PREFIX);
 	return 1;
 }
 
@@ -83,8 +98,10 @@ gettext_lua(lua_State *L)
 
 static const luaL_Reg telepipelib[] = {
 	{ "get_is_devel", get_is_devel_lua },
+	{ "get_is_flatpak", get_is_flatpak_lua },
 	{ "get_app_id", get_app_id_lua },
 	{ "get_app_ver", get_app_ver_lua },
+	{ "get_install_prefix", get_install_prefix_lua },
 	{ "get_cli_args", get_cli_args_lua },
 	{ "gettext", gettext_lua },
 	/* sentinel item, marks the end of the array */

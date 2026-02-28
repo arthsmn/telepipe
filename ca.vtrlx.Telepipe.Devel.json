@@ -33,13 +33,14 @@
 		"sources": [{
 			"type": "git",
 			"url": "https://github.com/vtrlx/LuaGObject",
-			"tag": "0.10.5"
+			"tag": "0.10.5",
+			"commit": "63c8099190c8830e9ba40dba1e48d7b000c7714e"
 		}]
 	}, {
 		"name": "telepipe",
 		"no-autogen": true,
-		"make-args": ["DEVEL=true"],
-		"make-install-args": ["DEVEL=true"],
+		"make-args": ["FLATPAK=true", "PREFIX=/app", "DEVEL=true"],
+		"make-install-args": ["PREFIX=/app", "DEVEL=true"],
 		"sources": [{
 			"type": "dir",
 			"path": "."

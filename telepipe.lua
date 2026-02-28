@@ -13,8 +13,9 @@ local lib = require "telepipelib"
 
 local _ = lib.gettext
 
-local app_id = lib.get_app_id()
 local app_title = _ "Telepipe"
+local app_id = lib.get_app_id()
+local install_prefix = lib.get_install_prefix()
 
 -- Replace's the user's $HOME with the tilde "~" character, a common convention when displaying paths.
 function lib.fmtdir(path)
@@ -87,9 +88,11 @@ end
 
 -- SECTION: Application
 
--- This app runs in Flatpak, which puts Lua libraries outside of the standard paths. These lines tell Lua to look for libraries where Flatpak has put them.
-package.cpath = "/app/lib/lua/5.5/?.so;" .. package.cpath
-package.path = "/app/share/lua/5.5/?.lua;" .. package.path
+if lib.get_is_flatpak() then
+	-- This app runs in Flatpak, which puts Lua libraries outside of the standard paths. These lines tell Lua to look for libraries where Flatpak has put them.
+	package.cpath = install_prefix .. "/lib/lua/5.5/?.so;" .. package.cpath
+	package.path = install_prefix .. "/share/lua/5.5/?.lua;" .. package.path
+end
 
 local LuaGObject = require "LuaGObject"
 
@@ -133,7 +136,7 @@ end
 -- SECTION: GResources
 
 do -- Load and register GResource.
-	local resource = Gio.Resource.load "/app/data/telepipe.gresource"
+	local resource = Gio.Resource.load(install_prefix .. "/data/telepipe.gresource")
 	assert(resource)
 	Gio.resources_register(resource)
 end -- Load and register GResource.
@@ -592,7 +595,7 @@ function runner:selectfiles(dofolders)
 			if not path and not dofolders then
 				-- The ability to query a file's host path is a little dicey in the case of symlinks to files. What works better is querying the parent's path and then just tacking the file's basename at the end.
 				local dir = file:get_parent()
-				local path = lib.unflatpakize(dir)
+				path = lib.unflatpakize(dir)
 				path = path .. "/" .. file:get_basename()
 			elseif not path then
 				path = lib.unflatpakize(file)
