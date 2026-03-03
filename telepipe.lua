@@ -60,16 +60,6 @@ function lib.unflatpakize(file)
 	return path
 end
 
-function lib.uriorhost(file)
-	local uri = file:get_uri()
-	if not uri:match "^file://" then return uri end
-	return lib.unflatpakize(file)
-end
-
-function lib.cancdto(path)
-	return path:match("^" .. os.getenv "HOME") or path:match "^[a-z]+://"
-end
-
 -- Simple class implementation without inheritance.
 function lib.newclass(init)
 	local c = {}
@@ -264,7 +254,7 @@ runnermenu:append(_ "Send to Background", "win.signal-background")
 local runner = lib.newclass(function(self, params)
 	assert(params)
 	self.env = {}
-	self.pwd = params.pwd or Gio.File.new_for_path(os.getenv "HOME")
+	self.pwd = params.pwd or os.getenv "HOME"
 	self.outputqueue = ""
 	local factory = Gtk.SignalListItemFactory {
 		on_setup = function(_, ...) self:setupitem(...) end,
@@ -532,7 +522,7 @@ local runner = lib.newclass(function(self, params)
 	}
 	runners[self.toolbarview] = self
 
-	if self.pwd:get_path() ~= os.getenv "HOME" then
+	if self.pwd ~= os.getenv "HOME" then
 		self:inserthistory("cd " .. self:getpwdlabel())
 	end
 	if #self.prefix > 0 then
@@ -576,7 +566,7 @@ function runner:enterfile(path)
 end
 
 function runner:selectfiles(dofolders)
-	local pwd = Gio.File.new_for_path(lib.unflatpakize(self.pwd))
+	local pwd = Gio.File.new_for_path(self.pwd)
 	local filedialog = Gtk.FileDialog {
 		initial_folder = pwd,
 	}
@@ -606,9 +596,7 @@ function runner:selectfiles(dofolders)
 end
 
 function runner:getpwdlabel()
-	local uri = self.pwd:get_uri()
-	if not uri:match "^file://" then return uri end
-	return lib.fmtdir(lib.unflatpakize(self.pwd))
+	return lib.fmtdir(self.pwd)
 end
 
 function runner:getprefixlabel(short)
@@ -645,7 +633,7 @@ function runner:updatetitle()
 end
 
 function runner:trychdir()
-	local pwd = Gio.File.new_for_path(lib.unflatpakize(self.pwd))
+	local pwd = Gio.File.new_for_path(self.pwd)
 	local filedialog = Gtk.FileDialog {
 		title = _ "Change Directory",
 		initial_folder = pwd,
@@ -655,24 +643,22 @@ function runner:trychdir()
 		if not dir then return end
 		-- guaranteed to be a dir, so there will be a message
 		self:ensurenewlines(2)
-		self:chdir(dir)
+		self:chdir(lib.unflatpakize(dir))
 	end)() --Call wrapped async context.
 end
 
-function runner:chdir(gdir)
+function runner:chdir(path)
 	if self.subproc then return end
-	self.pwd = gdir
+	self.pwd = path
 	self:ensurenewlines(1)
 	local message = _ "New working directory →	%s\n"
 	self:print(message:format(self:getpwdlabel()))
-	if lib.cancdto(lib.uriorhost(self.pwd)) then
-		self:inserthistory("cd " .. self:getpwdlabel())
-	end
+	self:inserthistory("cd " .. self:getpwdlabel())
 	self:updatetitle()
 end
 
 function runner:showfolder()
-	local launcher = Gtk.FileLauncher.new(self.pwd)
+	local launcher = Gtk.FileLauncher.new(Gio.File.new_for_path(self.pwd))
 	Gio.Async.start(function()
 		launcher:async_launch()
 	end)() -- Call wrapped async context.
@@ -948,7 +934,7 @@ function runner:getexecargs(command)
 	local args = {
 		"flatpak-spawn",
 		"--host",
-		("--directory=%s"):format(lib.unflatpakize(self.pwd)),
+		("--directory=%s"):format(self.pwd),
 		"--watch-bus",
 	}
 	-- Environment variables
@@ -982,7 +968,7 @@ function runner:tryexec(command)
 		self:ensurenewlines()
 		self:putstring("⇒	" .. command)
 		self:print "\n"
-		local param = command:match " (.*)"
+		local param = command:match "%s+(.*)"
 		-- The "cd" command has special behaviour for history handling.
 		if name ~= "cd" then
 			self:inserthistory(command)
@@ -1334,31 +1320,62 @@ Visit Telepipe's code repository at https://github.com/vtrlx/telepipe/ for more 
 end
 
 function runner.builtin:cd(dir)
-	if not dir or #dir == 0 then dir = os.getenv "HOME" end
+	if not dir or #dir == 0 or not dir:match "[^%s]" then dir = os.getenv "HOME" end
 	dir = lib.expanddir(dir)
 	local target
-	if dir:match "^[a-z]+://" then
-		target = Gio.File.new_for_uri(dir)
-	elseif dir:match "^/" then
-		target = Gio.File.new_for_path(dir)
+	if dir:match "^/" then
+		-- Strips redundant info from path, like trailing slashes.
+		dir = Gio.File.new_for_path(dir):get_path()
 	else
-		target = self.pwd:resolve_relative_path(dir)
+		dir = Gio.File.new_for_path(self.pwd):resolve_relative_path(dir):get_path()
 	end
-	local tpath = lib.uriorhost(target)
-	if not lib.cancdto(tpath) then
-		self:ensurenewlines(1)
-		local message = _ "Not in sandbox: %s. To change to a directory under this path, use the folder picker dialog."
-		self:putstring(message:format(tpath))
-		self:print "\n"
-		return
-	end
-	if target:query_file_type() == "DIRECTORY" then
-		self:chdir(target)
-	else
-		self:ensurenewlines(1)
-		self:putstring((_ "Not a directory: %s"):format(tpath))
-		self:print "\n"
-	end
+	Gio.Async.call(function()
+		self.entry.sensitive = false
+		local launcher = Gio.SubprocessLauncher.new { "STDOUT_SILENCE", "STDERR_SILENCE" }
+		local eval = ([[
+			DIR=%q
+			if [ -d "$DIR" ]
+			then
+				exit 0
+			elif [ -f "$DIR" ]
+			then
+				exit 2 # Not a directory
+			fi
+			exit 1 # No such directory
+		]]):format(dir)
+		-- The use of flatpak-spawn to validate the existence of directories on the host system was recommended by Flathub's volunteers.
+		local args = {
+			"flatpak-spawn",
+			"--host",
+			("--directory=%s"):format(os.getenv "HOME"),
+			"--watch-bus",
+			"/usr/bin/env",
+			"sh",
+			"-c",
+			eval,
+		}
+		local subproc = launcher:spawnv(args)
+		self.chdirbutton.visible = false
+		self.prefixbutton.visible = false
+		self.menubutton.visible = false
+		self.historybutton.visible = false
+		self.sendbutton.sensitive = false
+		subproc:async_wait()
+		local status = math.ceil(subproc:get_status() / 256)
+		assert(status <= 2)
+		if status == 0 then
+			self:chdir(dir)
+		elseif status == 1 then
+			self:ensurenewlines(1)
+			self:putstring((_ "No such directory: %s"):format(dir))
+			self:print "\n"
+		elseif status == 2 then
+			self:ensurenewlines(1)
+			self:putstring((_ "Not a directory: %s"):format(dir))
+			self:print "\n"
+		end
+		self:finish()
+	end)() -- Call wrapped async context.
 end
 
 function runner.builtin:clearenv()
