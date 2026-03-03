@@ -539,6 +539,7 @@ function runner:doactivate()
 end
 
 function runner:grab()
+	if self.tabview.selected_page ~= self.tabpage then return end
 	self.entry:set_position(-1)
 	self.entry:grab_focus_without_selecting()
 end
@@ -773,7 +774,7 @@ function runner:finish()
 	self.sendbutton.tooltip_text = _ "Run command"
 	if #self.entry.text > 0 then self.sendbutton.sensitive = true end
 	self:updatetitle()
-	self.entry:grab_focus_without_selecting()
+	self:grab()
 end
 
 function runner:waitend(async)
