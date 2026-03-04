@@ -582,6 +582,8 @@ function runner:selectfiles(dofolders)
 		for i = 1, list.n_items do
 			-- Gio's API documents say that ListModel's :get_item() method is not available to language bindings and to use :get_object() instead. That's not the case for LuaGObject, which binds :get_item() and returns the object itself instead of a pointer.
 			local file = list:get_item(i - 1)
+			-- The files returned by the dialog are sandboxed by Flatpak, but versions with the real paths are needed for the relative path calculation to work correctly.
+			file = Gio.File.new_for_path(lib.unflatpakize(file))
 			local path = pwd:get_relative_path(file)
 			if not path and not dofolders then
 				-- The ability to query a file's host path is a little dicey in the case of symlinks to files. What works better is querying the parent's path and then just tacking the file's basename at the end.
@@ -640,11 +642,19 @@ function runner:trychdir()
 		initial_folder = pwd,
 	}
 	Gio.Async.start(function()
+		self.entry.sensitive = false
+		self.chdirbutton.visible = false
+		self.prefixbutton.visible = false
+		self.menubutton.visible = false
+		self.historybutton.visible = false
+		self.sendbutton.sensitive = false
 		local dir = filedialog:async_select_folder(app.active_window)
-		if not dir then return end
-		-- guaranteed to be a dir, so there will be a message
-		self:ensurenewlines(2)
-		self:chdir(lib.unflatpakize(dir))
+		if dir then
+			-- guaranteed to be a dir, so there will be a message
+			self:ensurenewlines(2)
+			self:chdir(lib.unflatpakize(dir))
+		end
+		self:finish()
 	end)() --Call wrapped async context.
 end
 
