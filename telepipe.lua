@@ -1473,7 +1473,7 @@ local function shortcuts(parent)
 	local cut = Adw.ShortcutsItem.new_from_action
 	local shortdlg = Adw.ShortcutsDialog {
 		Adw.ShortcutsSection {
-			title = "Telepipe Window",
+			title = _ "Telepipe Window",
 			cut(_ "New Tab", "win.new-tab"),
 			cut(_ "New Window", "win.new-win"),
 			cut(_ "Open Tab Switcher", "win.overview"),
@@ -1481,7 +1481,7 @@ local function shortcuts(parent)
 			cut(_ "Show Keyboard Shortcuts", "win.shortcuts"),
 		},
 		Adw.ShortcutsSection {
-			title = "Command Runner Tab",
+			title = _ "Command Runner Tab",
 			cut(_ "Search Command Output", "win.search"),
 			cut(_ "Show Working Directory in Files", "win.open-folder"),
 			cut(_ "Stop Current Command", "win.signal-kill"),
@@ -1505,6 +1505,8 @@ local function about(parent)
 		developer_name = "Victoria Lacroix",
 		issue_url = "https://github.com/vtrlx/telepipe/issues/new",
 		license_type = "GPL_3_0",
+		release_notes_version = lib.get_app_ver(),
+		translator_credits = _ "translator-credits",
 		version = lib.get_app_ver(),
 		website = "https://www.vtrlx.ca/apps/telepipe/",
 	}
