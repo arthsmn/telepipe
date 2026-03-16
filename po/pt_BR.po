@@ -1,137 +1,139 @@
-# SOME DESCRIPTIVE TITLE.
-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# Portuguese translations for PACKAGE package
+# Traduções em português brasileiro para o pacote PACKAGE.
+# Copyright (C) 2026 THE PACKAGE'S COPYRIGHT HOLDER
 # This file is distributed under the same license as the PACKAGE package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# Arthur Cerqueira Ioselli <arthur.cerqueira@proton.me>, 2026.
 #
-#, fuzzy
 msgid ""
 msgstr ""
-"Project-Id-Version: PACKAGE VERSION\n"
+"Project-Id-Version: VERSÃO DO PACOTE\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-03-16 14:30-0300\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
-"Language: \n"
+"PO-Revision-Date: 2026-03-16 18:26-0300\n"
+"Last-Translator: Arthur Cerqueira Ioselli <arthur.cerqueira@proton.me>\n"
+"Language-Team: Portuguese\n"
+"Language: pt_BR\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Generator: Gtranslator 49.0\n"
 
 #: telepipe.lua:16
 msgid "Telepipe"
-msgstr ""
+msgstr "Telepipe"
 
 #: telepipe.lua:250
 msgid "Stop Running Command"
-msgstr ""
+msgstr "Interromper a Execução do Comando"
 
 #: telepipe.lua:251 telepipe.lua:1488
 msgid "Close Command Input"
-msgstr ""
+msgstr "Fechar Entrada de Comando"
 
 #: telepipe.lua:252
 msgid "Send to Background"
-msgstr ""
+msgstr "Enviar para Segundo Plano"
 
 #: telepipe.lua:331
 msgid "Find in output…"
-msgstr ""
+msgstr "Pesquisar em saída..."
 
 #: telepipe.lua:380
 msgid "Go to previous match"
-msgstr ""
+msgstr "Ir para correspondência anterior"
 
 #: telepipe.lua:387
 msgid "Go to next match"
-msgstr ""
+msgstr "Ir para próxima correspondência"
 
 #: telepipe.lua:413
 msgid "Select new working directory…"
-msgstr ""
+msgstr "Selecionar novo diretório de trabalho"
 
 #: telepipe.lua:420
 msgid "Signal to running command…"
-msgstr ""
+msgstr "Sinal para comando em execução"
 
 #: telepipe.lua:438
 msgid "Command history"
-msgstr ""
+msgstr "Histórico de Comandos"
 
 #: telepipe.lua:464 telepipe.lua:784
 msgid "Run command"
-msgstr ""
+msgstr "Executar comando"
 
 #: telepipe.lua:472 telepipe.lua:782
 msgid "Run a command…"
-msgstr ""
+msgstr "Execute o comando"
 
 #: telepipe.lua:607
 #, lua-format
 msgid "Clear prefix %q"
-msgstr ""
+msgstr "Limpar prefixo %q"
 
 #: telepipe.lua:641
 msgid "Change Directory"
-msgstr ""
+msgstr "Mudar Diretório"
 
 #: telepipe.lua:665
 #, lua-format
 msgid "New working directory →\t%s\n"
-msgstr ""
+msgstr "Novo diretório de trabalho →\t%s\n"
 
 #: telepipe.lua:761
 msgid "Copied output to clipboard."
-msgstr ""
+msgstr "Saída copiada para área de transferência."
 
 #: telepipe.lua:765
 msgid "Nothing to copy; Clipboard has not been modified."
-msgstr ""
+msgstr "Nada para copiar; Área de transferência não foi modificada."
 
 #: telepipe.lua:799
 msgid "Command was stopped."
-msgstr ""
+msgstr "Comando foi interrompido."
 
 #: telepipe.lua:803
 #, lua-format
 msgid "Exited with status code %d."
-msgstr ""
+msgstr "Encerrado com código de status %d."
 
 #: telepipe.lua:871
 msgid "Copy to command entry"
-msgstr ""
+msgstr "Copiar para linha de comando"
 
 #: telepipe.lua:884
 msgid "Remove from history"
-msgstr ""
+msgstr "Remover do histórico"
 
 #: telepipe.lua:1006
 msgid "Send to running command…"
-msgstr ""
+msgstr "Enviar para comando em execução..."
 
 #: telepipe.lua:1007 telepipe.lua:1046
 msgid "Send to running command"
-msgstr ""
+msgstr "Enviar para comando em execução..."
 
 #: telepipe.lua:1010
 msgid "Spawning ⇒\t"
-msgstr ""
+msgstr "Gerando ⇒\t"
 
 #: telepipe.lua:1032
 msgid "Failed to run command."
-msgstr ""
+msgstr "Falha ao executar comando."
 
 #: telepipe.lua:1113
 msgid "Nothing to paste."
-msgstr ""
+msgstr "Nada para colar."
 
 #: telepipe.lua:1203
 #, lua-format
 msgid "%d of %d"
-msgstr ""
+msgstr "%d de %d"
 
 #: telepipe.lua:1205
 msgid "no matches"
-msgstr ""
+msgstr "nenhuma correspondência"
 
 #: telepipe.lua:1294
 msgid ""
@@ -189,228 +191,296 @@ msgid ""
 "Visit Telepipe's code repository at https://github.com/vtrlx/telepipe/ for "
 "more information or to submit an issue.\n"
 msgstr ""
+"O Telepipe é um shell de linha de comando. Execute aplicativos de linha de "
+"comando como faria em um terminal.\n"
+"\n"
+"Os comandos do shell podem começar com um caractere de controle especial "
+"para modificar seu comportamento. São eles:\n"
+"• &comando\n"
+"    Executa o “comando” silenciosamente em segundo plano, sem entrada nem "
+"saída.\n"
+"• >comando\n"
+"    Cola o conteúdo da área de transferência no “comando” como entrada.\n"
+"• <comando\n"
+"    Copia a saída do “comando” para a área de transferência assim que ele "
+"terminar.\n"
+"• |comando\n"
+"    Cola o conteúdo da área de transferência no “comando” e copia a saída do "
+"‘comando’ de volta para a área de transferência, permitindo que o “comando” "
+"transforme o conteúdo da área de transferência.\n"
+"\n"
+"O Telepipe pode ser controlado por meio de certos comandos integrados. São "
+"eles:\n"
+"• help\n"
+"    Exibe este texto de ajuda.\n"
+"• exit\n"
+"    Fecha a guia atual. Se não houver mais guias, fecha a janela atual.\n"
+"• cd [diretório]\n"
+"    Altera o diretório de trabalho atual para o caminho fornecido. Se nenhum "
+"caminho for fornecido, altera o diretório de trabalho atual para o diretório "
+"home.\n"
+"\tEspaços e caracteres especiais no parâmetro fornecido serão interpretados "
+"literalmente — aspas e caracteres de escape não são necessários para o "
+"comando cd.\n"
+"• prefix [comando [args…]]\n"
+"    Define o prefixo desta aba como o comando/argumentos fornecidos. Se "
+"nenhum comando for fornecido, desativa o prefixo. Sempre que um prefixo for "
+"definido, ele será anexado à frente de todos os comandos de shell "
+"subsequentes — após quaisquer caracteres de prefixo especiais, se "
+"fornecidos.\n"
+"• setenv [nome[=[valor]]]\n"
+"    Se nenhum parâmetro for fornecido, exibe as variáveis de ambiente da "
+"guia.\n"
+"    Se um nome for fornecido, exibe o valor da variável de ambiente "
+"especificada.\n"
+"    Se um nome e um sinal de igual forem fornecidos, desativa a variável de "
+"ambiente especificada.\n"
+"    Se um nome, um sinal de igual e um valor forem fornecidos, define a "
+"variável de ambiente especificada com o valor fornecido.\n"
+"• clearenv\n"
+"    Desativa todas as variáveis de ambiente da aba.\n"
+"\n"
+"Os comandos integrados do Telepipe não são considerados comandos de shell e, "
+"portanto, não são afetados por caracteres de controle especiais ou "
+"prefixos.\n"
+"\n"
+"ESTE SOFTWARE É EXPERIMENTAL. Recursos esperados da linha de comando podem "
+"não existir e os recursos existentes podem estar sujeitos a alterações. "
+"Muitos programas de linha de comando apresentarão um comportamento incomum, "
+"embora, na maioria dos casos, isso possa ser corrigido por meio de "
+"determinados sinalizadores. Programas que requerem o terminal não "
+"funcionarão de forma alguma e podem exibir texto com aparência estranha — "
+"evite usar esses aplicativos no Telepipe.\n"
+"\n"
+"Visite o repositório de código do Telepipe em https://github.com/vtrlx/"
+"telepipe/ para obter mais informações ou para enviar um relatório de "
+"problema.\n"
 
 #: telepipe.lua:1381
 #, lua-format
 msgid "No such directory: %s"
-msgstr ""
+msgstr "Diretório não existe: %s"
 
 #: telepipe.lua:1385
 #, lua-format
 msgid "Not a directory: %s"
-msgstr ""
+msgstr "Não é um diretório: %s"
 
 #: telepipe.lua:1397
 msgid "Environment variables were cleared."
-msgstr ""
+msgstr "Variáveis de ambiente foram limpas."
 
 #: telepipe.lua:1420
 msgid "Prefix was cleared."
-msgstr ""
+msgstr "Prefixo foi limpo."
 
 #: telepipe.lua:1423
 msgid "Active prefix →\t"
-msgstr ""
+msgstr "Prefixo ativo →\t"
 
 #: telepipe.lua:1441
 msgid "Given variable name is invalid."
-msgstr ""
+msgstr "Nome da variável fornecido é inválido."
 
 #: telepipe.lua:1448
 #, lua-format
 msgid "Variable %s is unset."
-msgstr ""
+msgstr "Variável %s não está definida."
 
 #: telepipe.lua:1453
 #, lua-format
 msgid "Cleared variable %s."
-msgstr ""
+msgstr "Variável %s foi limpa."
 
 #: telepipe.lua:1458
 #, lua-format
 msgid "Set variable %s to %q."
-msgstr ""
+msgstr "Defina a variável %s como %q."
 
 #: telepipe.lua:1465 telepipe.lua:1478
 msgid "New Window"
-msgstr ""
+msgstr "Nova Janela"
 
 #: telepipe.lua:1466 telepipe.lua:1485
 msgid "Search Command Output"
-msgstr ""
+msgstr "Pesquisar na Saída de Comandos"
 
 #: telepipe.lua:1467
 msgid "Open Working Directory"
-msgstr ""
+msgstr "Abrir Diretório de Trabalho"
 
 #: telepipe.lua:1468 telepipe.lua:1917
 msgid "Preferences"
-msgstr ""
+msgstr "Preferências"
 
 #: telepipe.lua:1469
 msgid "Keyboard Shortcuts"
-msgstr ""
+msgstr "Atalhos de Teclado"
 
 #: telepipe.lua:1470
 msgid "About "
-msgstr ""
+msgstr "Sobre o "
 
 #: telepipe.lua:1476
 msgid "Telepipe Window"
-msgstr ""
+msgstr "Janela do Telepipe"
 
 #: telepipe.lua:1477 telepipe.lua:1529
 msgid "New Tab"
-msgstr ""
+msgstr "Nova Aba"
 
 #: telepipe.lua:1479
 msgid "Open Tab Switcher"
-msgstr ""
+msgstr "Abrir Seletor de Abas"
 
 #: telepipe.lua:1480
 msgid "Open Preferences Dialog"
-msgstr ""
+msgstr "Abrir Diálogo de Preferências"
 
 #: telepipe.lua:1481
 msgid "Show Keyboard Shortcuts"
-msgstr ""
+msgstr "Mostrar Atalhos de Teclado"
 
 #: telepipe.lua:1484
 msgid "Command Runner Tab"
-msgstr ""
+msgstr "Aba do Comando em Execução"
 
 #: telepipe.lua:1486
 msgid "Show Working Directory in Files"
-msgstr ""
+msgstr "Mostrar Diretório de Trabalho em Arquivos"
 
 #: telepipe.lua:1487
 msgid "Stop Current Command"
-msgstr ""
+msgstr "Interromper Comando Atual"
 
 #: telepipe.lua:1489
 msgid "Quietly Send to Background"
-msgstr ""
+msgstr "Enviar Silenciosamente para Segundo Plano"
 
 #: telepipe.lua:1490
 msgid "Focus Command Entry"
-msgstr ""
+msgstr "Focar na Linha de Comando"
 
 #: telepipe.lua:1491
 msgid "Change Working Directory"
-msgstr ""
+msgstr "Mudar Diretório de Trabalho"
 
 #: telepipe.lua:1492
 msgid "Enter File Path in Entry"
-msgstr ""
+msgstr "Inserir Caminho para Arquivo no Campo de Entrada"
 
 #: telepipe.lua:1493
 msgid "Enter Folder Path in Entry"
-msgstr ""
+msgstr "Inserir Caminho para Diretório no Campo de Entrada"
 
 #: telepipe.lua:1494
 msgid "Close Current Tab"
-msgstr ""
+msgstr "Fechar Aba Atual"
 
 #: telepipe.lua:1509
 msgid "translator-credits"
-msgstr ""
+msgstr "Arthur Cerqueira Ioselli <arthur.cerqueira@proton.me>"
 
 #: telepipe.lua:1514
 msgid "Contact the developer"
-msgstr ""
+msgstr "Entrar em contato com o desenvolvedor"
 
 #: telepipe.lua:1515
 msgid "Contribute a translation"
-msgstr ""
+msgstr "Contribua com uma tradução"
 
 #: telepipe.lua:1516
 msgid "Support this app"
-msgstr ""
+msgstr "Apoie este aplicativo"
 
 #: telepipe.lua:1589
 #, lua-format
 msgid "The command %q is running in this tab. Close anyway?"
-msgstr ""
+msgstr "O comando %q está rodando nesta aba. Fechar mesmo assim?"
 
 #: telepipe.lua:1595
 msgid "Close This Tab?"
-msgstr ""
+msgstr "Fechar Esta Aba?"
 
 #: telepipe.lua:1596 telepipe.lua:1694
 msgid "Keep Open"
-msgstr ""
+msgstr "Manter Aberto"
 
 #: telepipe.lua:1598
 msgid "Stop Command and Close"
-msgstr ""
+msgstr "Interrompa Comando e Feche"
 
 #: telepipe.lua:1600
 msgid "Send to Background and Close"
-msgstr ""
+msgstr "Envie para Segundo Plano e Feche"
 
 #: telepipe.lua:1693
 msgid "Stop Running Commands?"
-msgstr ""
+msgstr "Parar de Executar Comandos?"
 
 #: telepipe.lua:1693
 msgid "There are commands running in this window. Close anway?"
-msgstr ""
+msgstr "Existem comandos rodando nesta janela. Fechar mesmo assim?"
 
 #: telepipe.lua:1696
 msgid "Stop All and Close"
-msgstr ""
+msgstr "Interromper Todos e Fechar"
 
 #: telepipe.lua:1730
 msgid "Command was sent to the background."
-msgstr ""
+msgstr "Comando foi enviador para segundo plano."
 
 #: telepipe.lua:1837
 msgid "Global Environment Variables"
-msgstr ""
+msgstr "Variáveis de Ambiente Globais"
 
 #: telepipe.lua:1838
 msgid ""
 "Environment variables assigned here will be exported to every command that "
 "is executed."
 msgstr ""
+"As variáveis de ambiente definidas aqui serão exportadas para todos os "
+"comandos executados."
 
 #: telepipe.lua:1848
 msgid "Clear this environment variable"
-msgstr ""
+msgstr "Limpar esta variável de ambiente"
 
 #: telepipe.lua:1864
 msgid "Name"
-msgstr ""
+msgstr "Nome"
 
 #: telepipe.lua:1867
 msgid "Value"
-msgstr ""
+msgstr "Valor"
 
 #: telepipe.lua:1871
 msgid "Set Variable"
-msgstr ""
+msgstr "Definir Valor"
 
 #: telepipe.lua:1908
 msgid "Set or Add Environment Variable"
-msgstr ""
+msgstr "Definir ou Adicionar Variável de Ambiente"
 
 #: telepipe.lua:1909
 msgid ""
 "If the named environment variable exists, its value will be set to the given "
 "value. Otherwise, the variable is added to the list."
 msgstr ""
+"Se a variável de ambiente nomeada existir, seu valor será definido como o "
+"valor fornecido. Caso contrário, a variável será adicionada à lista."
 
 #: telepipe.lua:1936
 msgid "Switch to this tab"
-msgstr ""
+msgstr "Mudar para esta aba"
 
 #: telepipe.lua:1976
 msgid "Search open tabs…"
-msgstr ""
+msgstr "Pesquisar abas abertas..."
 
 #: telepipe.lua:2051
 msgid "Search Tabs"
-msgstr ""
+msgstr "Pesquisar Abas"
 
 #: telepipe.lua:2082
 msgid ""
@@ -418,3 +488,6 @@ msgid ""
 "quotation marks) then press the Enter key for more information on using this "
 "application.\n"
 msgstr ""
+"Bem-vindo ao Telepipe. Digite \"help\" na linha de comando abaixo (sem "
+"aspas) e pressione a tecla Enter para obter mais informações sobre como usar "
+"este aplicativo.\n"

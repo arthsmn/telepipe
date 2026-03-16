@@ -4,8 +4,10 @@ Name=Telepipe
 Name[en]=Telepipe
 Keywords=console;command line;cli;terminal;pipe;
 Keywords[en]=console;command line;cli;terminal;pipe;
+Keywords[pt_BR]=console;linha de comando;cli;terminal;pipe;
 Comment=Easily combine pipes with the clipboard
 Comment[en]=Easily combine pipes with the clipboard
+Comment[pt_BR]=Combine facilmente comandos com a área de transferência
 Type=Application
 Exec=telepipe
 Actions=new-window;
@@ -16,4 +18,5 @@ StartupNotify=false
 [Desktop Action new-window]
 Name=New Window
 Name[en]=New Window
+Name[pt_BR]=Nova Janela
 Exec=telepipe --new-window
