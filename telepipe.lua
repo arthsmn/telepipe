@@ -45,14 +45,25 @@ function lib.isdir(path)
 	return lib.fileexists(path .. "/")
 end
 
+function lib.unescapeutf(str)
+	assert(type(str) == "string")
+	-- Single-quotes need to be escaped, because the string itself will be single-quoted.
+	str = str:gsub("'", "\\'")
+	local src = ("return '%s'"):format(str)
+	local f = assert(load(src))
+	return f()
+end
+
 function lib.unflatpakize(file)
 	local path
 	local fileinfo = file:query_info "xattr::document-portal.host-path"
 	if fileinfo then
 		path = fileinfo:get_attribute_string "xattr::document-portal.host-path"
+		path = lib.unescapeutf(path)
 	end
 	if not path then
 		path = file:get_path()
+		path = lib.unescapeutf(path)
 	end
 	if path:match "^/run/host" then
 		path = path:gsub("^/run/host", "", 1)
